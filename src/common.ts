@@ -64,6 +64,11 @@ export function createTable(input: any):DataTable {
     return dataTable;
 }
 
+export function parseNumber(input: string): number {
+    const num = Number(input);
+    return Number.isNaN(num) ? 0 : num;
+}
+
 export function dateTimeNow(): Date {
     return new Date();
 }
@@ -104,4 +109,32 @@ export function from(fromExpression: string): SelectQueryBuilder {
     builder.from(fromExpression);
 
     return builder;
+}
+
+export function parse(json: string): any {
+    if (!json) {
+        return null;
+    }
+
+    const parsedObject = JSON.parse(json);
+
+    if (parsedObject && typeof parsedObject === 'object' && '_name' in parsedObject) {
+
+        if (parsedObject._name === "DataTable"){
+            // Create DataTable.
+            const tableResult = new DataTable();
+            parsedObject.columns.forEach((column: any) => {
+                tableResult.addColumn(column);
+            });
+            if (parsedObject.rows) {
+                parsedObject.rows.forEach((row: any) => {
+                    tableResult.addRow(row);
+                });
+            }
+            return tableResult;
+        }
+    }
+
+    return parsedObject;
+
 }

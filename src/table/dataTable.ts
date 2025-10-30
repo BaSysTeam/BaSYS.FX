@@ -321,6 +321,47 @@ export class DataTable {
         )).process();
     }
 
+    unpivot(
+        resultColumnConfig: any,
+        pivotColumnNames: string[],
+        userDefinedNumberColumnName: string | null = null,
+        userDefinedNameColumnName: string | null = null,
+    ) :DataTable {
+        const resultTable = new DataTable();
+        resultTable.addColumn(resultColumnConfig);
+
+        const resultColumn = resultTable.columns[0];
+        const numberColumnName = userDefinedNumberColumnName || `${resultColumn.name}_unpivot_number`;
+        const nameColumnName = userDefinedNameColumnName || `${resultColumn.name}_unpivot_name`;
+
+        resultTable.addColumn({ name: numberColumnName, dataType: 'number' });
+        resultTable.addColumn({ name: nameColumnName });
+
+        const sourceColumnNames: string[] = [];
+        this._columns.forEach((column: any) => {
+            if (!pivotColumnNames.includes(column.name)) {
+                resultTable.addColumn(column);
+                sourceColumnNames.push(column.name);
+            }
+        });
+
+        this._rows.forEach((row: any) => {
+            let columnNumber = 1;
+            pivotColumnNames.forEach((pivotName: any) => {
+                const newRow = resultTable.newRow(true);
+                sourceColumnNames.forEach((sourceName: string) => {
+                    newRow[sourceName] = row[sourceName];
+                });
+                newRow[numberColumnName] = columnNumber;
+                newRow[nameColumnName] = pivotName;
+                newRow[resultColumn.name] = row[pivotName];
+                columnNumber += 1;
+            });
+        });
+
+        return resultTable;
+    }
+
     private fillRowFromArray(data: any[]): void {
         const newRow = this.newRow();
         this._columns.forEach((column: any, index: number) => {
