@@ -1,3 +1,4 @@
+import { ColumnDescription } from './columnDescription';
 import { DistributionProcessor } from './distributionProcessor';
 import { UnionProcessor } from './unionProcessor';
 import { GroupByProcessor } from './groupByProcessor';
@@ -133,6 +134,52 @@ export class DataTable {
         this._rows = [];
 
         return this;
+    }
+
+    select(input: any[] | string): DataTable {
+        const resultTable = new DataTable();
+        // If no specific columns provided, clone the whole table
+        if (!input || (Array.isArray(input) && input.length === 0) || (typeof input === 'string' && input.trim().length === 0)) {
+            return this.clone();
+        }
+
+        // Normalize input to ColumnDescription and create columns with aliases
+        const toColumnDescription = (item: any): ColumnDescription => {
+            if (typeof item === 'string') {
+                const raw = item.trim();
+                // Support patterns like: "product" or "product as item" (case-insensitive)
+                const parts = raw.split(/\s+as\s+/i);
+                const name = (parts[0] || '').trim();
+                const alias = (parts[1] || name).trim();
+                return new ColumnDescription({ name, alias });
+            }
+            return new ColumnDescription(item);
+        };
+
+        // If input is a single string with comma-separated items, split it first
+        const items: any[] = typeof input === 'string'
+            ? input.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+            : input;
+
+        const columns: ColumnDescription[] = items.map((c: any) => toColumnDescription(c));
+
+        columns.forEach((col: ColumnDescription) => {
+            const sourceColumn = this.getColumn(col.name);
+            if (!sourceColumn) {
+                throw new Error(`Column ${col.name} not found`);
+            }
+            resultTable.addColumn({ name: col.alias, dataType: sourceColumn.dataType });
+        });
+
+        // Copy rows mapping source values to aliases
+        this._rows.forEach((row: any) => {
+            const newRow = resultTable.newRow(true);
+            columns.forEach((col: ColumnDescription) => {
+                newRow[col.alias] = row[col.name];
+            });
+        });
+
+        return resultTable;
     }
 
     filter(predicate: (row: any) => boolean): DataTable {

@@ -2,6 +2,7 @@ export class GroupingColumn {
     name: string;
     alias: string;
     aggregate: string;
+    delimiter: string;
 
     constructor(params: any) {
         let data: any = {};
@@ -12,5 +13,6 @@ export class GroupingColumn {
         this.name = data.name || '';
         this.alias = data.alias || this.name;
         this.aggregate = data.aggregate || 'sum';
+        this.delimiter = data.delimiter || ', ';
     }
 }

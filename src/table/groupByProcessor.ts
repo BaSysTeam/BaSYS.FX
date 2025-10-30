@@ -140,6 +140,8 @@ export class GroupByProcessor {
                 totals[gColumn.alias] = undefined;
             } else if (gColumn.aggregate === 'count') {
                 totals[gColumn.alias] = 0;
+            } else if (gColumn.aggregate === 'concat') {
+                totals[gColumn.alias] = '';
             }
         });
 
@@ -165,6 +167,10 @@ export class GroupByProcessor {
                 } else if (gColumn.aggregate === 'count') {
                     if (value) {
                         totals[gColumn.alias] += 1;
+                    }
+                } else if (gColumn.aggregate === 'concat') {
+                    if (value != null && value !== undefined) {
+                        totals[gColumn.alias] += (totals[gColumn.alias] ? gColumn.delimiter : '') + value.toString();
                     }
                 } else {
                     throw new Error(`Unknown aggregate function ${gColumn.aggregate}`);
