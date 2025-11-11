@@ -3,6 +3,7 @@ import { QueryParameter } from './queryParameter';
 export class SelectQueryModel {
     dbName: string;
     top: number;
+    getDisplays: boolean;
     fromExpression: string;
     whereExpression: string;
     orderByExpression: string;
@@ -17,6 +18,7 @@ export class SelectQueryModel {
 
         this.dbName = data.dbName || globalThis.DB_NAME;
         this.top = data.top || 0;
+        this.getDisplays = data.getDisplays || false;
         this.fromExpression = data.fromExpression || '';
         this.whereExpression = data.whereExpression || '';
         this.orderByExpression = data.orderByExpression || '';

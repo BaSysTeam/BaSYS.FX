@@ -23,6 +23,11 @@ export class SelectQueryBuilder {
         return this;
     }
 
+    getDisplays(flag = true): SelectQueryBuilder {
+        this.model.getDisplays = flag;
+        return this;
+    }
+
     select(expressions: string[]): SelectQueryBuilder {
         expressions.forEach((expression) => {
             this.model.selectExpressions.push(expression);
