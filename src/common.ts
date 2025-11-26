@@ -123,11 +123,15 @@ export function parse(json: string): any {
         if (parsedObject._name === "DataTable"){
             // Create DataTable.
             const tableResult = new DataTable();
-            parsedObject.columns.forEach((column: any) => {
-                tableResult.addColumn(column);
-            });
-            if (parsedObject.rows) {
-                parsedObject.rows.forEach((row: any) => {
+            const columns = parsedObject.columns || parsedObject._columns;
+            if (columns) {
+                columns.forEach((column: any) => {
+                    tableResult.addColumn(column);
+                });
+            }
+            const rows = parsedObject.rows || parsedObject._rows;
+            if (rows) {
+                rows.forEach((row: any) => {
                     tableResult.addRow(row);
                 });
             }
