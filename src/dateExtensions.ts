@@ -23,6 +23,7 @@ interface Date {
     beginYearUTC(): Date;
     endYearUTC(): Date;
     addYearsUTC(years: number): Date;
+    toLocalISO(): string;
 }
 
 Date.prototype.beginDay = function beginDay(): Date {
@@ -150,4 +151,19 @@ Date.prototype.addYearsUTC = function addYearsUTC(years: number): Date {
     const d = new Date(this);
     d.setUTCFullYear(d.getUTCFullYear() + years);
     return d;
+};
+
+Date.prototype.toLocalISO = function toLocalISO(): string {
+    const date = new Date(this);
+
+    const pad = (n:any):string => n.toString().padStart(2, '0');
+
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hour = pad(date.getHours());
+    const minute = pad(date.getMinutes());
+    const second = pad(date.getSeconds());
+
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 };

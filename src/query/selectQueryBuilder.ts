@@ -49,7 +49,47 @@ export class SelectQueryBuilder {
     parameter(name: string, value: any, dbType: DbType): SelectQueryBuilder;
 
     parameter(name: string, value: any, dbType?: DbType): SelectQueryBuilder {
-        const newParameter = new QueryParameter(dbType ? { name, value, dbType } : { name, value });
+        let actualValue = value;
+        let actualDbType = dbType;
+
+        // If value is a Date, convert it to string and set DbType.DateTime
+        if (value instanceof Date) {
+            actualValue = value.toLocalISO();
+            actualDbType = DbType.DateTime; // 6
+        }
+
+        // If value is a number and dbType is not explicitly set, infer the numeric type
+        if (typeof value === 'number' && !dbType) {
+            if (Number.isInteger(value)) {
+                // Integer value
+                const INT32_MIN = -2147483648;
+                const INT32_MAX = 2147483647;
+                if (value >= INT32_MIN && value <= INT32_MAX) {
+                    actualDbType = DbType.Int32; // 11
+                } else {
+                    actualDbType = DbType.Int64; // 12
+                }
+            } else {
+                actualDbType = DbType.Decimal; // 7
+            }
+        }
+
+        // If value is a boolean and dbType is not explicitly set, set DbType.Boolean
+        if (typeof value === 'boolean' && !dbType) {
+            actualDbType = DbType.Boolean; // 3
+        }
+
+        const newParameter = new QueryParameter(
+            actualDbType ? {
+                    name,
+                    value: actualValue,
+                    dbType: actualDbType,
+                }
+                : {
+                    name,
+                    value: actualValue,
+                },
+        );
 
         this.model.parameters.push(newParameter);
         return this;
