@@ -1,5 +1,5 @@
 {
-  "name": "basys.fx",
+  "name": "@basysteam/basys-fx",
   "version": "1.0.0",
   "description": "BaSYS.FX is an extended set of functions for working with dates, tables, and utilities in JavaScript.",
   "main": "dist/basys-fx.umd.js",
@@ -34,5 +34,13 @@
   },
   "dependencies": {
     "tslib": "^2.8.1"
-  }
+  },
+  "publishConfig": {
+  "access": "public"
+},
+"files": [
+  "dist",
+  "README.md",
+  "LICENSE"
+]
 }
