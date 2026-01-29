@@ -40,6 +40,26 @@ export class SelectQueryBuilder {
         return this;
     }
 
+    whereAnd(whereExpression: string): SelectQueryBuilder {
+        if (this.model.whereExpression) {
+            this.model.whereExpression += ` and ${whereExpression}`;
+        } else {
+            this.model.whereExpression = whereExpression;
+        }
+
+        return this;
+    }
+
+    whereOr(whereExpression: string): SelectQueryBuilder {
+        if (this.model.whereExpression) {
+            this.model.whereExpression += ` or ${whereExpression}`;
+        } else {
+            this.model.whereExpression = whereExpression;
+        }
+
+        return this;
+    }
+
     orderBy(orderByExpression: string): SelectQueryBuilder {
         this.model.orderByExpression = orderByExpression;
         return this;
