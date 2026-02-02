@@ -99,19 +99,31 @@ export class SelectQueryBuilder {
         let actualValue = value;
         let actualDbType = dbType;
 
+        // Determine the value to use for type inference
+        // If value is an array, use the first element for type inference
+        let valueForTypeInference = value;
+        if (Array.isArray(value) && value.length > 0) {
+            valueForTypeInference = value[0];
+        }
+
         // If value is a Date, convert it to string and set DbType.DateTime
-        if (value instanceof Date) {
-            actualValue = value.toLocalISO();
+        if (valueForTypeInference instanceof Date) {
+            if (Array.isArray(value)) {
+                // Convert all dates in array
+                actualValue = value.map(v => v instanceof Date ? v.toLocalISO() : v);
+            } else {
+                actualValue = valueForTypeInference.toLocalISO();
+            }
             actualDbType = DbType.DateTime; // 6
         }
 
         // If value is a number and dbType is not explicitly set, infer the numeric type
-        if (typeof value === 'number' && !dbType) {
-            if (Number.isInteger(value)) {
+        if (typeof valueForTypeInference === 'number' && !dbType) {
+            if (Number.isInteger(valueForTypeInference)) {
                 // Integer value
                 const INT32_MIN = -2147483648;
                 const INT32_MAX = 2147483647;
-                if (value >= INT32_MIN && value <= INT32_MAX) {
+                if (valueForTypeInference >= INT32_MIN && valueForTypeInference <= INT32_MAX) {
                     actualDbType = DbType.Int32; // 11
                 } else {
                     actualDbType = DbType.Int64; // 12
@@ -122,7 +134,7 @@ export class SelectQueryBuilder {
         }
 
         // If value is a boolean and dbType is not explicitly set, set DbType.Boolean
-        if (typeof value === 'boolean' && !dbType) {
+        if (typeof valueForTypeInference === 'boolean' && !dbType) {
             actualDbType = DbType.Boolean; // 3
         }
 
