@@ -56,6 +56,27 @@ export class DataTable {
         return this;
     }
 
+    addColumns(input: any): DataTable {
+        if (Array.isArray(input)) {
+            if (input != null && input.length) {
+                input.forEach((column: any) => {
+                    if (typeof column === 'string') {
+                        this.addColumn(column.trim());
+                    } else if (typeof input === 'object' && input instanceof Object) {
+                        this.addColumn(column);
+                    } else {
+                        throw new Error('Wrong column description');
+                    }
+                });
+            }
+        } else if (typeof input === 'string') {
+            const parts = input.split(',');
+            this.addColumns(parts);
+        }
+
+        return this;
+    }
+
     clone(): DataTable {
         const newTable = new DataTable();
 
@@ -85,6 +106,25 @@ export class DataTable {
                 delete row[columnName];
             });
         }
+        return this;
+    }
+
+    deleteColumns(input: any): DataTable {
+        if (Array.isArray(input)) {
+            if (input != null && input.length) {
+                input.forEach((column: any) => {
+                    if (typeof column === 'string') {
+                        this.deleteColumn(column.trim());
+                    } else {
+                        throw new Error('Wrong column description');
+                    }
+                });
+            }
+        } else if (typeof input === 'string') {
+            const parts = input.split(',');
+            this.deleteColumns(parts);
+        }
+
         return this;
     }
 

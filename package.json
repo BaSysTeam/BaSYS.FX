@@ -1,6 +1,6 @@
 {
   "name": "@basysteam/basys-fx",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "BaSYS.FX is an extended set of functions for working with dates, tables, and utilities in JavaScript.",
   "main": "dist/basys-fx.umd.js",
   "module": "dist/basys-fx.esm.js",
@@ -12,7 +12,10 @@
     "default": "./dist/basys-fx.iife.js"
   },
   "scripts": {
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "repository": {
     "type": "git",
@@ -29,7 +32,10 @@
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.1.2",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
     "rollup": "^4.34.9",
+    "ts-jest": "^29.2.5",
     "typescript": "^5.8.2"
   },
   "dependencies": {
