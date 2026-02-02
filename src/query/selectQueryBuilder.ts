@@ -65,6 +65,33 @@ export class SelectQueryBuilder {
         return this;
     }
 
+    offset(offsetValue: number): SelectQueryBuilder {
+        this.model.offset = offsetValue;
+        return this;
+    }
+
+    take(takeValue: number): SelectQueryBuilder {
+        this.model.take = takeValue;
+        return this;
+    }
+
+    groupBy(groupByExpression: string): SelectQueryBuilder;
+    groupBy(fields: string[]): SelectQueryBuilder;
+
+    groupBy(arg: string | string[]): SelectQueryBuilder {
+        if (Array.isArray(arg)) {
+            this.model.groupByExpresssion = arg.join(", ");
+        } else {
+            this.model.groupByExpresssion = arg;
+        }
+        return this;
+    }
+
+    having(havingExpression: string): SelectQueryBuilder {
+        this.model.havingExpression = havingExpression;
+        return this;
+    }
+
     parameter(name: string, value: any): SelectQueryBuilder;
     parameter(name: string, value: any, dbType: DbType): SelectQueryBuilder;
 
