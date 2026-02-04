@@ -332,6 +332,108 @@ describe('DataTable', () => {
   });
   */
 
+  describe('toArray method', () => {
+    it('Should return all values from column', () => {
+      const products = tableProducts.toArray('product', false);
+
+      expect(products.length).toBe(3);
+      expect(products[0]).toBe('product_1');
+      expect(products[1]).toBe('product_2');
+      expect(products[2]).toBe('product_3');
+    });
+
+    it('Should return distinct values when distinctOnly = true', () => {
+      // Add duplicate values
+      tableProducts
+        .addRow([new Date('2024-09-04'), 'product_1', 5, 100, 0])
+        .addRow([new Date('2024-09-05'), 'product_2', 10, 200, 0]);
+
+      const products = tableProducts.toArray('product', true);
+
+      expect(products.length).toBe(3);
+      expect(products).toContain('product_1');
+      expect(products).toContain('product_2');
+      expect(products).toContain('product_3');
+    });
+
+    it('Should return all values including duplicates when distinctOnly = false', () => {
+      tableProducts
+        .addRow([new Date('2024-09-04'), 'product_1', 5, 100, 0])
+        .addRow([new Date('2024-09-05'), 'product_2', 10, 200, 0]);
+
+      const products = tableProducts.toArray('product', false);
+
+      expect(products.length).toBe(5);
+      expect(products.filter((p: string) => p === 'product_1').length).toBe(2);
+      expect(products.filter((p: string) => p === 'product_2').length).toBe(2);
+    });
+
+    it('Should work with numeric columns', () => {
+      const quantities = tableProducts.toArray('quantity', false);
+
+      expect(quantities.length).toBe(3);
+      expect(quantities[0]).toBe(5);
+      expect(quantities[1]).toBe(10);
+      expect(quantities[2]).toBe(1);
+    });
+
+    it('Should work with date columns', () => {
+      const periods = tableProducts.toArray('period', false);
+
+      expect(periods.length).toBe(3);
+      expect(periods[0]).toEqual(new Date('2024-09-01'));
+      expect(periods[1]).toEqual(new Date('2024-09-02'));
+      expect(periods[2]).toEqual(new Date('2024-09-03'));
+    });
+
+    it('Should return empty array for empty table', () => {
+      const emptyTable = new DataTable()
+        .addColumn({ name: 'product', dataType: 'string' });
+
+      const products = emptyTable.toArray('product', false);
+
+      expect(products.length).toBe(0);
+    });
+
+    it('Should throw error for non-existing column', () => {
+      expect(() => {
+        tableProducts.toArray('nonExistingColumn', false);
+      }).toThrow('Column nonExistingColumn not found');
+    });
+
+    it('Should handle null and undefined values', () => {
+      const testTable = new DataTable()
+        .addColumn({ name: 'value', dataType: 'string' })
+        .addRow([null])
+        .addRow([undefined])
+        .addRow(['test']);
+
+      const values = testTable.toArray('value', false);
+
+      expect(values.length).toBe(3);
+      expect(values[0]).toBe(null);
+      expect(values[1]).toBe(undefined);
+      expect(values[2]).toBe('test');
+    });
+
+    it('Should handle distinct values with null and undefined', () => {
+      const testTable = new DataTable()
+        .addColumn({ name: 'value', dataType: 'string' })
+        .addRow([null])
+        .addRow([null])
+        .addRow([undefined])
+        .addRow(['test'])
+        .addRow(['test']);
+
+      const values = testTable.toArray('value', true);
+
+      expect(values.length).toBe(3);
+      expect(values).toContain(null);
+      expect(values).toContain(undefined);
+      expect(values).toContain('test');
+    });
+  });
+
   describe('Select method', () => {
     it('Should select by array of column names', () => {
       const result = tableProducts.select(['product', 'quantity']);

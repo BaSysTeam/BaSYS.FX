@@ -317,6 +317,23 @@ export class DataTable {
         return count;
     }
 
+    toArray(columnName: string, distinctOnly: boolean = true): any[] {
+        this.checkExistingColumn(columnName);
+
+        const values: any[] = [];
+        
+        this._rows.forEach((row: any) => {
+            values.push(row[columnName]);
+        });
+
+        if (distinctOnly) {
+            // Return only distinct values using Set
+            return Array.from(new Set(values));
+        }
+
+        return values;
+    }
+
     process(predicate: (row: any) => void): DataTable {
         this._rows.forEach((row: any) => predicate(row));
         return this;
