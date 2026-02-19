@@ -1,4 +1,5 @@
 import { QueryParameter } from './queryParameter';
+import { FilterItem } from './filterItem';
 
 export class SelectQueryModel {
     dbName: string;
@@ -13,6 +14,7 @@ export class SelectQueryModel {
     havingExpression: string;
     selectExpressions: string[];
     parameters: QueryParameter[];
+    filters: FilterItem[];
 
     constructor(params: any) {
         let data: any = {};
@@ -42,6 +44,13 @@ export class SelectQueryModel {
         if (data.parameters) {
             data.parameters.forEach((item: any) => {
                 this.parameters.push(new QueryParameter(item));
+            });
+        }
+
+        this.filters = [];
+        if (data.filters) {
+            data.filters.forEach((item: any) => {
+                this.filters.push(new FilterItem(item));
             });
         }
     }

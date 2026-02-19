@@ -3,6 +3,7 @@ import { DbType } from './dbTypes';
 import { SelectQueryModel } from './selectQueryModel';
 import { DataTable } from '../table/dataTable';
 import { IQueriesProvider } from './queriesProvider';
+import { FilterItem } from './filterItem';
 
 export class SelectQueryBuilder {
     model: SelectQueryModel;
@@ -151,6 +152,16 @@ export class SelectQueryBuilder {
         );
 
         this.model.parameters.push(newParameter);
+        return this;
+    }
+
+    withFilters(items: FilterItem[], exclude?: string[]): SelectQueryBuilder {
+        const excludeSet = exclude ? new Set(exclude) : null;
+        items.forEach((item) => {
+            if (!excludeSet || !excludeSet.has(item.name)) {
+                this.model.filters.push(item);
+            }
+        });
         return this;
     }
 
