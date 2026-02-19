@@ -2,7 +2,6 @@ import { DataTableColumn } from './table/dataTableColumn';
 import { DataTable } from './table/dataTable';
 import { SelectQueryBuilder } from './query/selectQueryBuilder'
 
-
 export function isEmpty(value: any): boolean {
     if (value) {
         return false;
