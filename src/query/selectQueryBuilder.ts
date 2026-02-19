@@ -155,9 +155,9 @@ export class SelectQueryBuilder {
         return this;
     }
 
-    withFilters(items: FilterItem[], exclude?: string[]): SelectQueryBuilder {
+    withFilters(items: Record<string, FilterItem>, exclude?: string[]): SelectQueryBuilder {
         const excludeSet = exclude ? new Set(exclude) : null;
-        items.forEach((item) => {
+        Object.values(items).forEach((item) => {
             if (!excludeSet || !excludeSet.has(item.name)) {
                 this.model.filters.push(item);
             }

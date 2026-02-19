@@ -1,6 +1,6 @@
 {
   "name": "@basysteam/basys-fx",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "BaSYS.FX is an extended set of functions for working with dates, tables, and utilities in JavaScript.",
   "main": "dist/basys-fx.umd.js",
   "module": "dist/basys-fx.esm.js",
