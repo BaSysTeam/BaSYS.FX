@@ -22,7 +22,7 @@ export class FilterItem {
     this.dataPath = (data.path as string) || '';
     this.title = (data.title as string) || '';
     this.required = (data.required as boolean) ?? false;
-    this.isActive = this.required;
+    this.isActive = (data.isActive as boolean) ?? this.required;
     this.comparisonKind = (data.comparisonKind as ComparisonKind) ?? ComparisonKind.Equal;
     this.joinOperator = (data.joinOperator as LogicalOperator) ?? LogicalOperator.And;
     this.dbType = (data.dbType as DbType) ?? DbType.String;

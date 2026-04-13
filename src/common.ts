@@ -141,3 +141,174 @@ export function parse(json: string): any {
     return parsedObject;
 
 }
+
+// ── Formatting ──────────────────────────────────────────────────────────
+
+export interface NumberFormatOptions {
+    decimals?: number;
+    decimalSeparator?: string;
+    groupSeparator?: string;
+}
+
+export interface BooleanFormatOptions {
+    trueValue?: string;
+    falseValue?: string;
+}
+
+function parseNumberFormatString(fmt: string): { decimals: number; useGrouping: boolean } {
+    const dotIndex = fmt.lastIndexOf('.');
+    let decimals = 2;
+    let useGrouping = false;
+
+    if (dotIndex !== -1) {
+        decimals = fmt.length - dotIndex - 1;
+    } else {
+        decimals = 0;
+    }
+
+    if (fmt.indexOf(',') !== -1) {
+        useGrouping = true;
+    }
+
+    return { decimals, useGrouping };
+}
+
+function pad(n: number, width: number): string {
+    const s = String(n);
+    return s.length >= width ? s : '0'.repeat(width - s.length) + s;
+}
+
+function applyGrouping(integerStr: string, separator: string): string {
+    if (separator === '' || integerStr.length <= 3) {
+        return integerStr;
+    }
+
+    const parts: string[] = [];
+    let i = integerStr.length;
+    while (i > 3) {
+        parts.unshift(integerStr.substring(i - 3, i));
+        i -= 3;
+    }
+    parts.unshift(integerStr.substring(0, i));
+    return parts.join(separator);
+}
+
+export function formatNumber(value: number, formatOrOptions?: string | NumberFormatOptions): string {
+    let decimals = 2;
+    let decimalSeparator = '.';
+    let groupSeparator = ' ';
+    let useGrouping = true;
+
+    if (typeof formatOrOptions === 'string') {
+        const parsed = parseNumberFormatString(formatOrOptions);
+        decimals = parsed.decimals;
+        useGrouping = parsed.useGrouping;
+    } else if (formatOrOptions) {
+        decimals = formatOrOptions.decimals ?? decimals;
+        decimalSeparator = formatOrOptions.decimalSeparator ?? decimalSeparator;
+        groupSeparator = formatOrOptions.groupSeparator ?? groupSeparator;
+    }
+
+    const isNegative = value < 0;
+    const absValue = Math.abs(value);
+    const fixed = absValue.toFixed(decimals);
+
+    let integerPart: string;
+    let fractionalPart: string | undefined;
+
+    const pointIndex = fixed.indexOf('.');
+    if (pointIndex !== -1) {
+        integerPart = fixed.substring(0, pointIndex);
+        fractionalPart = fixed.substring(pointIndex + 1);
+    } else {
+        integerPart = fixed;
+    }
+
+    if (useGrouping) {
+        integerPart = applyGrouping(integerPart, groupSeparator);
+    }
+
+    let result = integerPart;
+    if (fractionalPart !== undefined) {
+        result += decimalSeparator + fractionalPart;
+    }
+
+    if (isNegative) {
+        result = '-' + result;
+    }
+
+    return result;
+}
+
+export function formatDate(value: Date, fmt: string = 'dd.MM.yyyy'): string {
+    const year = value.getFullYear();
+    const month = value.getMonth() + 1;
+    const day = value.getDate();
+    const hours24 = value.getHours();
+    const hours12 = hours24 % 12 || 12;
+    const minutes = value.getMinutes();
+    const seconds = value.getSeconds();
+    const millis = value.getMilliseconds();
+
+    const tokens: Array<[RegExp, string]> = [
+        [/yyyy/g, String(year)],
+        [/yy/g, String(year).slice(-2)],
+        [/MM/g, pad(month, 2)],
+        [/M/g, String(month)],
+        [/dd/g, pad(day, 2)],
+        [/d/g, String(day)],
+        [/HH/g, pad(hours24, 2)],
+        [/H/g, String(hours24)],
+        [/hh/g, pad(hours12, 2)],
+        [/h/g, String(hours12)],
+        [/mm/g, pad(minutes, 2)],
+        [/m/g, String(minutes)],
+        [/ss/g, pad(seconds, 2)],
+        [/s/g, String(seconds)],
+        [/SSS/g, pad(millis, 3)],
+    ];
+
+    // Replace tokens from longest to shortest using placeholders
+    // to prevent partial replacement conflicts.
+    const placeholders: string[] = [];
+    let result = fmt;
+
+    for (let i = 0; i < tokens.length; i++) {
+        const [regex, replacement] = tokens[i];
+        const placeholder = `\x00${i}\x00`;
+        placeholders.push(replacement);
+        result = result.replace(regex, placeholder);
+    }
+
+    for (let i = 0; i < placeholders.length; i++) {
+        const placeholder = `\x00${i}\x00`;
+        result = result.split(placeholder).join(placeholders[i]);
+    }
+
+    return result;
+}
+
+export function formatBoolean(value: boolean, options?: BooleanFormatOptions): string {
+    const trueValue = options?.trueValue ?? 'true';
+    const falseValue = options?.falseValue ?? 'false';
+    return value ? trueValue : falseValue;
+}
+
+export function format(
+    value: number | Date | boolean,
+    formatOrOptions?: string | NumberFormatOptions | BooleanFormatOptions,
+): string {
+    if (typeof value === 'number') {
+        return formatNumber(value, formatOrOptions as string | NumberFormatOptions);
+    }
+
+    if (value instanceof Date) {
+        return formatDate(value, formatOrOptions as string | undefined);
+    }
+
+    if (typeof value === 'boolean') {
+        return formatBoolean(value, formatOrOptions as BooleanFormatOptions | undefined);
+    }
+
+    throw new Error('format: unsupported value type');
+}
