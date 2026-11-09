@@ -8,7 +8,7 @@ Allows scripts to sort an in-memory DataTable by a concise ordered list of colum
 
 ### Requirement: Three ordering call forms
 
-`DataTable.orderBy` SHALL accept a comparator `(a: any, b: any) => number`, a comma-separated string of criteria, or an array of criterion strings. The comparator form SHALL retain its existing native array-sort behavior. Declarative sorting SHALL NOT require direction helper functions.
+`DataTable.orderBy` SHALL accept a comparator `(a: any, b: any) => number` with contextual parameter typing, a comma-separated string of criteria, or an array of criterion strings. TypeScript SHALL accept `string | readonly string[]`, including mutable arrays, readonly tuples, and string/array unions. Criteria arrays SHALL NOT be mutated. The comparator form SHALL retain native array-sort behavior. Declarative sorting SHALL NOT require direction helper functions.
 
 #### Scenario: Equivalent string and array
 
@@ -21,25 +21,66 @@ Allows scripts to sort an in-memory DataTable by a concise ordered list of colum
 - **WHEN** a script passes `(a, b) => b.quantity - a.quantity`
 - **THEN** rows are sorted using that comparator with the same behavior as the existing API
 
+#### Scenario: Readonly criteria and union settings
+
+- **GIVEN** rows `(number, period)` of `(2, 10)`, `(1, 10)`, and `(1, 20)` in separate tables
+- **WHEN** calls use a frozen criteria array `['number', 'period desc']`, a readonly `as const` tuple with those criteria, or string/array union settings holding either equivalent form
+- **THEN** TypeScript accepts the calls and each table contains `(1, 20)`, `(1, 10)`, `(2, 10)`
+- **AND** the criteria arrays retain their elements and order
+
 ### Requirement: Criterion grammar and name resolution
 
-Each criterion SHALL be a single column-name token optionally followed by whitespace and `asc` or `desc`. Direction SHALL be case-insensitive and default to ascending. Leading/trailing whitespace and repeated whitespace between tokens SHALL be accepted. Column names SHALL match the current table's column names exactly, including case. Names containing whitespace or commas and SQL quoting/expressions SHALL be outside this grammar.
+Each criterion SHALL be one column-name token optionally followed by whitespace and `asc` or `desc`. Direction SHALL be case-insensitive and default to ascending. Whitespace SHALL mean JavaScript `\s` for trimming, token separation, and name restrictions. Leading/trailing and repeated separating whitespace SHALL be accepted. Names SHALL match current columns exactly, including case, and SHALL NOT contain whitespace or commas.
 
 #### Scenario: Whitespace and direction casing
 
+- **GIVEN** rows `(number, period)` of `(2, 10)`, `(1, 10)`, and `(1, 20)`
 - **WHEN** a script calls `orderBy('  number  ASC ,\tperiod   DeSc  ')` with the escape representing a tab
-- **THEN** number is sorted ascending and period descending within equal numbers
+- **THEN** rows are `(1, 20)`, `(1, 10)`, `(2, 10)`
+- **AND** `orderBy('\u00a0number\u00a0ASC,\nperiod\tdesc\u00a0')` produces the same order, with escapes representing NBSP, newline, and tab
 
 #### Scenario: A selected alias is a current column name
 
+- **GIVEN** source rows `(product, quantity)` of `('apple', 2)`, `('pear', 1)`, and `('banana', 3)`
 - **WHEN** a script calls `table.select('product as item, quantity').orderBy('item desc')`
-- **THEN** ordering uses the selected table's `item` column
+- **THEN** selected rows `(item, quantity)` are `('pear', 1)`, `('banana', 3)`, `('apple', 2)`
 
 #### Scenario: Column names remain case-sensitive
 
 - **GIVEN** a table with column `number` and no column `Number`
 - **WHEN** a script calls `orderBy('Number')`
 - **THEN** it fails with `Column Number not found`
+
+#### Scenario: Unicode column name
+
+- **GIVEN** a column named `количество` with row values `2`, `1`, `3`
+- **WHEN** a script calls `orderBy('количество desc')`
+- **THEN** its values are `3`, `2`, `1`
+
+#### Scenario: Direction words are literal column names
+
+- **GIVEN** separate tables with columns literally named `desc` and `asc`, each containing values `2`, `1`, `3`
+- **WHEN** they call `orderBy('desc')` and `orderBy('asc')`, respectively
+- **THEN** both columns contain `1`, `2`, `3`
+- **AND** `orderBy('desc desc')` on the first table produces `3`, `2`, `1`
+
+### Requirement: Punctuation tokens are literal names
+
+Column tokens SHALL allow Unicode and all punctuation other than commas. Quotes, brackets, dots, and parentheses SHALL be literal characters, without SQL unquoting, expression evaluation, or property traversal. An exactly matching column SHALL be used; otherwise the call SHALL fail with `Column <token> not found`.
+
+#### Scenario: Existing punctuation names are sortable
+
+- **GIVEN** separate tables whose single column is named `"number"`, `'number'`, `[number]`, backtick-wrapped `number`, `t.number`, `price-usd`, `lower(name)`, or `qty(kg)`, each containing `2`, `1`
+- **WHEN** each calls `orderBy` with its exact column name as a single criterion
+- **THEN** each column contains `1`, `2`
+
+#### Scenario: SQL-looking tokens do not resolve plain names
+
+- **GIVEN** a table with only column `number` and values `2`, `1`
+- **WHEN** separate calls use `"number"`, `'number'`, `[number]`, backtick-wrapped `number`, `t.number`, `price-usd`, `lower(name)`, or `qty(kg)` as a single criterion
+- **THEN** each fails with `Column <token> not found`, preserving the literal token in the message
+- **AND** for `"number"` the exact error is `Column "number" not found`
+- **AND** all calls leave the table unchanged
 
 ### Requirement: Criteria have ordered priority and stable ties
 
@@ -123,7 +164,7 @@ An empty or whitespace-only string and an empty array SHALL be successful no-ops
 
 ### Requirement: Validate criteria before mutation
 
-Declarative ordering SHALL validate the entire input and all referenced columns before reordering rows. Unsupported argument types, non-string array elements, malformed criteria, or unsupported direction tokens SHALL throw Error with a message prefixed `orderBy:`. Unknown columns SHALL throw `Column <name> not found`. Failures in this validation SHALL leave the table unchanged.
+Declarative ordering SHALL validate the entire input and all referenced columns before reordering rows. Unsupported argument types, non-string array elements (including holes), malformed criteria, or unsupported directions SHALL throw Error with a message prefixed `orderBy:`. Unknown columns SHALL throw `Column <name> not found`. Failures in this validation SHALL leave the table unchanged.
 
 #### Scenario: Invalid secondary criterion does not partially sort
 
@@ -136,7 +177,29 @@ Declarative ordering SHALL validate the entire input and all referenced columns 
 - **WHEN** a script calls `orderBy('number, absent desc')`
 - **THEN** it fails with `Column absent not found`
 
+#### Scenario: Sparse arrays are invalid
+
+- **GIVEN** a table with columns `number` and `period` and rows `(2, 10)`, `(1, 20)`
+- **WHEN** JavaScript code passes `['number', , 'period']` or `new Array(1)`
+- **THEN** the call fails with an `orderBy:` error and leaves rows, row-array identity, and columns unchanged
+
 #### Scenario: Unsupported argument type
 
 - **WHEN** JavaScript code passes `null`, `undefined`, a number, or an object as the argument
 - **THEN** the call fails with an `orderBy:` error before changing any rows
+
+### Requirement: Validation errors have deterministic precedence
+
+Argument-shape and criterion-syntax validation for the entire list SHALL precede all column lookups. Once syntax is valid, column lookup SHALL proceed left to right and report the first unknown column. These rules SHALL apply even with zero or one row.
+
+#### Scenario: Malformed syntax takes precedence over an unknown column
+
+- **GIVEN** a table with column `period` and no column `absent`
+- **WHEN** separate calls pass `'absent, period sideways'` or `'absent sideways'`
+- **THEN** both fail with an `orderBy:` error, leaving the table unchanged
+
+#### Scenario: First unknown column wins after syntax validation
+
+- **GIVEN** a table with neither column `absent` nor `otherAbsent`
+- **WHEN** a script calls `orderBy('absent, otherAbsent desc')`
+- **THEN** it fails with `Column absent not found`, leaving the table unchanged

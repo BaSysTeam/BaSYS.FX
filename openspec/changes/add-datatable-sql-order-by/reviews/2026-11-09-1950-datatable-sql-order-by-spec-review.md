@@ -6,7 +6,11 @@
 **Reviewed sources:** [proposal](../proposal.md), [design](../design.md), [tasks](../tasks.md), [datatable-ordering spec](../specs/datatable-ordering/spec.md), [main query-boundaries spec](../../../specs/query-boundaries/spec.md), [dataTable.ts](../../../../src/table/dataTable.ts), [dataTableColumn.ts](../../../../src/table/dataTableColumn.ts), [distributionProcessor.ts](../../../../src/table/distributionProcessor.ts), [index.ts](../../../../src/index.ts), [queryBoundary.ts](../../../../src/query/queryBoundary.ts), [tests/](../../../../tests/), `README.md`, `package.json`, `tsconfig.json`, `jest.config.js`, `rollup.config.mjs`.
 
 ## Verdict
-**Readiness:** Ready after corrections.
+**Readiness:** Ready for implementation; all seven findings have been resolved in the planning artifacts.
+
+**Correction status (2026-11-09):** The observations and original traceability below retain the pre-correction review history. The checked findings and Resolution verification section record their current disposition.
+
+**Original review summary:**
 
 The package is coherent and the behavior is mostly specified well. Every requirement has testable scenarios, the worked examples are arithmetically correct (B, D, A, C; `2, 0, null, NaN`; `A, a, b`), and the stable decorate-sort-copy-back design fits the ES6 target and embedded runtimes. The plan also correctly keeps `rows` array identity, which `filter`/`clear` do not preserve today.
 
@@ -72,7 +76,7 @@ One High gap remains. The grammar promises both "punctuation is allowed in colum
 - **Evidence:** [dataTable.ts L200-L202](../../../../src/table/dataTable.ts#L200-L202) (`.filter((s) => s.length > 0)`); spec "Empty segments are invalid".
 - **Recommendation:** Reword the proposal to say "similar string/array input forms". In the README note from task 1.7, mention that trailing or empty segments are errors in `orderBy`.
 
-## Requirements traceability
+## Original requirements traceability
 | Requirement / Scenario | Tasks | Test / validation | Status |
 | --- | --- | --- | --- |
 | datatable-ordering: Three ordering call forms — Equivalent string and array | 1.1, 1.2 | Both forms produce `(1,20)`, `(1,10)`, `(2,10)` | covered |
@@ -100,13 +104,27 @@ One High gap remains. The grammar promises both "punctuation is allowed in colum
 ## Ranked findings
 | Done | # | Severity | Finding | Artifact |
 | --- | --- | --- | --- | --- |
-| [ ] | 1 | High | The line between literal punctuation names and rejected SQL syntax is undefined | [spec](../specs/datatable-ordering/spec.md), [design](../design.md), [tasks](../tasks.md) |
-| [ ] | 2 | Medium | The existing column ordering in `DistributionProcessor` is not acknowledged and uses different rules | [design](../design.md) |
-| [ ] | 3 | Medium | Task 2.2's type-level acceptance and rejection check has no defined harness | [tasks](../tasks.md) |
-| [ ] | 4 | Medium | Grammar behavior promised in design and tasks is missing from the spec | [spec](../specs/datatable-ordering/spec.md) |
-| [ ] | 5 | Low | Overloads reject `string \| string[]` unions and readonly arrays | [design](../design.md) |
-| [ ] | 6 | Low | Validation edge cases: error precedence and sparse arrays | [spec](../specs/datatable-ordering/spec.md) |
-| [ ] | 7 | Low | The proposal says this "matches the conventions" of `select`, but empty segments are handled differently | [proposal](../proposal.md) |
+| [x] | 1 | High | The line between literal punctuation names and rejected SQL syntax is undefined | [spec](../specs/datatable-ordering/spec.md), [design](../design.md), [tasks](../tasks.md) |
+| [x] | 2 | Medium | The existing column ordering in `DistributionProcessor` is not acknowledged and uses different rules | [design](../design.md) |
+| [x] | 3 | Medium | Task 2.2's type-level acceptance and rejection check has no defined harness | [tasks](../tasks.md) |
+| [x] | 4 | Medium | Grammar behavior promised in design and tasks is missing from the spec | [spec](../specs/datatable-ordering/spec.md) |
+| [x] | 5 | Low | Overloads reject `string \| string[]` unions and readonly arrays | [design](../design.md) |
+| [x] | 6 | Low | Validation edge cases: error precedence and sparse arrays | [spec](../specs/datatable-ordering/spec.md) |
+| [x] | 7 | Low | The proposal says this "matches the conventions" of `select`, but empty segments are handled differently | [proposal](../proposal.md) |
+
+## Resolution verification — 2026-11-09
+
+| # | Resolution | Updated artifacts / acceptance evidence |
+| --- | --- | --- |
+| 1 | Chose literal-token lookup with no SQL syntax blacklist. Quotes, brackets, backticks, dots, hyphens, and parentheses remain part of the name; exact columns sort, absent names produce `Column <token> not found`. | [Spec — Punctuation tokens are literal names](../specs/datatable-ordering/spec.md#requirement-punctuation-tokens-are-literal-names), design Decision 2, tasks 1.3/1.7, proposal scope |
+| 2 | Acknowledged `DistributionProcessor` ordering and deliberately retained its existing collation, date, missing-value, and native stability behavior. Aligning it would be a separate change. | Design Context / Decision 3, proposal scope, README task 1.7 |
+| 3 | Defined the temporary root-level consumer file, generated-declaration import, exact local `tsc --noEmit --strict` command, positive calls, negative `@ts-expect-error` calls, required result, and file disposal. | [Tasks — Strict consumer check for task 2.2](../tasks.md#strict-consumer-check-for-task-22), design Migration Plan |
+| 4 | Defined whitespace as JavaScript `\s`, added Unicode and single-token `desc`/`asc` scenarios, and supplied concrete rows/results for whitespace and selected-alias scenarios. | Spec — Criterion grammar and name resolution, design Decision 2, task 1.2 |
+| 5 | Chose a comparator overload plus a `string \| readonly string[]` overload. The contract and strict consumer check cover mutable/readonly arrays, `as const` tuples, and string/array union settings; criteria arrays remain unchanged. | Spec — Three ordering call forms, design Decision 1, tasks 1.1/1.6/2.2 |
+| 6 | Made whole-list syntax validation precede column lookup; valid lists resolve names left to right. Holes count as non-string elements. Added exact precedence and sparse-array scenarios. | Spec — Validate criteria before mutation / Validation errors have deterministic precedence, design Decision 2, task 1.3 |
+| 7 | Reworded the proposal to similar string/array input forms and explicitly distinguished `select`'s empty-segment handling. | Proposal Why, README task 1.7 |
+
+Validation after corrections: `openspec validate add-datatable-sql-order-by --strict` passed. The four planning artifacts were reconciled against all seven findings. Implementation tasks remain unchecked (0/10); no implementation source, README, package script, or persistent consumer fixture was changed. Runtime tests, build, and the consumer compilation remain apply-stage checks and were not run for these planning-only corrections.
 
 ## Review limitations
 - No tests, build, or TypeScript compilation were run. This review only covers planning, so the code claims were checked by reading and searching.
