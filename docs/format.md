@@ -38,7 +38,7 @@ function formatNumber(value: number, format?: string | NumberFormatOptions): str
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `decimals` | `number` | `2` | Display digits after the decimal point, in `0..100`. `NaN` means `0`. A finite fraction truncates toward zero. `null` or `undefined` keeps `2`. |
+| `decimals` | `number` | `2` | Display digits after the decimal point, in `0..100`. The value is first coerced like `toFixed` (`ToNumber`): `NaN` means `0`, and a finite fraction truncates toward zero. A value that cannot be converted throws. `null` or `undefined` keeps `2`. |
 | `decimalSeparator` | `string` | `"."` | Character used as the decimal separator. |
 | `groupSeparator` | `string` | `" "` (space) | Character used as the thousands group separator. Pass `""` to disable grouping. |
 

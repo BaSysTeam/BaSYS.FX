@@ -157,6 +157,27 @@ describe('formatNumber edges', () => {
         expect(formatNumber(1.005, { decimals: NaN })).toBe('1');
     });
 
+    it('coerces string and boxed precision before truncation', () => {
+        const cases: Array<[number, string]> = [
+            ['2.9' as unknown as number, '1.01'],
+            [new Number(2.9) as unknown as number, '1.01'],
+            ['abc' as unknown as number, '1'],
+            ['-0.9' as unknown as number, '1'],
+            ['100.9' as unknown as number, '1.005' + '0'.repeat(97)],
+        ];
+
+        cases.forEach(([decimals, expected]) => {
+            expect(formatNumber(1.005, { decimals })).toBe(expected);
+            expect(format(1.005, { decimals })).toBe(expected);
+        });
+    });
+
+    it('throws when precision cannot be converted', () => {
+        const decimals = Symbol('decimals') as unknown as number;
+        expect(() => formatNumber(1.005, { decimals })).toThrow(TypeError);
+        expect(() => format(1.005, { decimals })).toThrow(TypeError);
+    });
+
     it('keeps the default for nullish precision and accepts 0 and 100', () => {
         expect(formatNumber(1.2, { decimals: undefined })).toBe('1.20');
         expect(formatNumber(1.2, { decimals: null as unknown as number })).toBe('1.20');

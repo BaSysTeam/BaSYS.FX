@@ -248,13 +248,15 @@ function applyGrouping(integerStr: string, separator: string): string {
 }
 
 function normalizeDisplayDecimals(decimals: number): number {
+    // ToNumber, matching Number#toFixed. Number() would accept a bigint.
+    const numeric = +decimals;
     let truncated: number;
-    if (Number.isNaN(decimals)) {
+    if (Number.isNaN(numeric)) {
         truncated = 0;
-    } else if (!Number.isFinite(decimals)) {
-        truncated = decimals;
+    } else if (!Number.isFinite(numeric)) {
+        truncated = numeric;
     } else {
-        truncated = Math.trunc(decimals);
+        truncated = Math.trunc(numeric);
     }
     if (Object.is(truncated, -0)) {
         truncated = 0;
@@ -318,11 +320,12 @@ function renderRoundedDecimal(
  * the display precision. They are not converted back to a binary number and
  * they are not rounded a second time. A rounded zero has no minus sign.
  *
- * Display precision stays in `0..100`. The default is `2`. Numeric `NaN`
- * means `0`, and a finite fraction truncates toward zero. A nullish option
- * keeps the default. This is narrower than `round`, which accepts integers
- * from `-308` to `324`. Precision outside `0..100` throws `RangeError`
- * before a non-finite value is turned into a token.
+ * Display precision stays in `0..100`. The default is `2`. The value is
+ * first coerced like `toFixed` (`ToNumber`): `NaN` means `0`, and a finite
+ * fraction truncates toward zero. A value that cannot be converted throws.
+ * A nullish option keeps the default. This is narrower than `round`, which
+ * accepts integers from `-308` to `324`. Precision outside `0..100` throws
+ * `RangeError` before a non-finite value is turned into a token.
  *
  * Finite inputs are plain decimal text, including values whose canonical
  * form uses an exponent. For a valid precision, `NaN`, `Infinity`, and
