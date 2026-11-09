@@ -161,6 +161,47 @@ Composition applies to non-empty SQL fragment strings. `''`, `null`, and `undefi
 
 The grouping ships in `2.0.0`, a major release after the pinned boundaries release `1.1.0` (`edabb452961d95deecc1660f55c1f4f10fb2ce9c`). It does not ship in a `1.x` release, and the fixed build is not a publishable `1.1.0` artifact. npm consumers on `^1.0.6` must upgrade explicitly to the new major. Frontend bundles and both embedded backend copies, `BaSysFX` and `BaSysFXmodule`, must be updated from the same `2.0.0` revision and deployed together. Before publishing, the release owner adds the breaking change, the old and new grouping, and this migration guidance to `docs/relises/2.0.0.md`.
 
+## Sort a DataTable
+
+`DataTable.orderBy` sorts the rows of an in-memory table and returns that same table. The row array and the row objects stay in place; only their order changes. `SelectQueryBuilder.orderBy` is a different method: it stores an expression on the query, and the server sorts the result.
+
+A comparator uses the runtime's own array sort:
+
+```js
+const ranked = new DataTable()
+    .addColumn({ name: 'quantity', dataType: 'number' })
+    .addRow([1])
+    .addRow([10])
+    .addRow([2]);
+
+ranked.orderBy((a, b) => b.quantity - a.quantity);
+// quantity: 10, 2, 1
+```
+
+A string or an array of strings names columns in priority order. The direction defaults to ascending. `asc` and `desc` are optional and case-insensitive. These two calls both produce `(1, 20)`, `(1, 10)`, `(2, 10)`:
+
+```js
+const table = new DataTable()
+    .addColumn({ name: 'number', dataType: 'number' })
+    .addColumn({ name: 'period', dataType: 'number' })
+    .addRow([2, 10])
+    .addRow([1, 10])
+    .addRow([1, 20]);
+
+table.orderBy('number, period desc');
+table.orderBy(['number', 'period desc']);
+```
+
+TypeScript accepts `string | readonly string[]`, including a mutable array, a readonly or frozen array, an `as const` tuple, and a value typed as `string | string[]` or `string | readonly string[]`. The call does not modify the criteria array.
+
+Whitespace is JavaScript `\s`: spaces, tabs, line breaks, NBSP (`U+00A0`), and every other character `\s` matches. Extra whitespace around commas and between a name and its direction is ignored. Names are matched exactly, including case and Unicode. Punctuation is part of the literal name. `"number"`, `'number'`, `[number]`, a backtick-wrapped name, `t.number`, `price-usd`, `lower(name)`, and `qty(kg)` sort a column of that exact name, or fail with `Column <token> not found`. They are not SQL quotes, expressions, or property paths. A column literally named `asc` or `desc` is that single token; `desc desc` sorts the `desc` column descending.
+
+Present values are compared by their runtime type, not by the column's declared type. Numbers compare numerically, strings by case-sensitive JavaScript order, booleans as `false` then `true`, and valid dates by epoch time, including a date created in another execution context. `null`, `undefined`, `NaN`, and an invalid date are missing. Missing values compare equal and sort after every present value for both `asc` and `desc`, so the next column can still separate them. `0`, `false`, and `''` are ordinary values. Rows that remain equal keep the order they had before the call. The next `orderBy` uses only the criteria from that call.
+
+`orderBy('')`, a whitespace-only string, and `orderBy([])` succeed and leave the order unchanged. An empty segment such as `number,`, `,number`, `number,,period`, `['']`, or `['number', '  ']` throws an `Error` whose message starts with `orderBy:`. `select` drops empty segments; `orderBy` rejects them. An unknown column throws `Column <name> not found`. The whole list is checked for syntax before any column is looked up, including when the table has no rows. A failed call leaves the table unchanged.
+
+`distributeFifo` and `distributeLifo` keep their own ordering. They compare strings with locale-sensitive comparison and do not use this missing-value rule.
+
 ## Development
 
 ### OpenSpec in Codex and Cursor

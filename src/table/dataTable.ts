@@ -227,8 +227,23 @@ export class DataTable {
         return this;
     }
 
-    orderBy(sortFunction: (a: any, b: any) => number): DataTable {
-        this._rows.sort(sortFunction);
+    orderBy(sortFunction: (a: any, b: any) => number): DataTable;
+    orderBy(criteria: string | readonly string[]): DataTable;
+    orderBy(criteria: any): DataTable {
+        if (typeof criteria === 'function') {
+            this._rows.sort(criteria);
+            return this;
+        }
+
+        const parsed = parseOrderByCriteria(criteria);
+        if (parsed === null) {
+            return this;
+        }
+
+        parsed.forEach((criterion) => {
+            this.checkExistingColumn(criterion.column);
+        });
+        sortRowsByOrderCriteria(this._rows, parsed);
         return this;
     }
 
@@ -492,4 +507,158 @@ export class DataTable {
 
         return true;
     }
+}
+
+type OrderDirection = 'asc' | 'desc';
+
+interface OrderCriterion {
+    column: string;
+    direction: OrderDirection;
+}
+
+function parseOrderByCriteria(criteria: any): OrderCriterion[] | null {
+    if (typeof criteria === 'string') {
+        if (/^\s*$/.test(criteria)) {
+            return null;
+        }
+        return criteria.split(',').map((part) => parseOrderByCriterion(part));
+    }
+
+    if (Array.isArray(criteria)) {
+        if (criteria.length === 0) {
+            return null;
+        }
+
+        const parsed: OrderCriterion[] = [];
+        for (let index = 0; index < criteria.length; index += 1) {
+            if (!Object.prototype.hasOwnProperty.call(criteria, index) || typeof criteria[index] !== 'string') {
+                throw new Error('orderBy: array element is not a string');
+            }
+            if (criteria[index].includes(',')) {
+                throw new Error(`orderBy: invalid criterion '${criteria[index]}'`);
+            }
+            parsed.push(parseOrderByCriterion(criteria[index]));
+        }
+        return parsed;
+    }
+
+    throw new Error('orderBy: unsupported argument');
+}
+
+function parseOrderByCriterion(raw: string): OrderCriterion {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+        throw new Error('orderBy: empty criterion');
+    }
+
+    const tokens = trimmed.split(/\s+/);
+    if (tokens.length === 1) {
+        return { column: tokens[0], direction: 'asc' };
+    }
+
+    if (tokens.length === 2) {
+        const direction = tokens[1].toLowerCase();
+        if (direction === 'asc' || direction === 'desc') {
+            return { column: tokens[0], direction };
+        }
+        throw new Error(`orderBy: unsupported direction '${tokens[1]}'`);
+    }
+
+    throw new Error(`orderBy: invalid criterion '${trimmed}'`);
+}
+
+function sortRowsByOrderCriteria(rows: any[], criteria: OrderCriterion[]): void {
+    const decorated = rows.map((row, index) => ({ row, index }));
+    decorated.sort((left, right) => {
+        for (let index = 0; index < criteria.length; index += 1) {
+            const criterion = criteria[index];
+            const compared = compareOrderByValues(
+                left.row[criterion.column],
+                right.row[criterion.column],
+                criterion.direction,
+            );
+            if (compared !== 0) {
+                return compared;
+            }
+        }
+        return left.index - right.index;
+    });
+
+    for (let index = 0; index < decorated.length; index += 1) {
+        rows[index] = decorated[index].row;
+    }
+}
+
+function compareOrderByValues(left: any, right: any, direction: OrderDirection): number {
+    const leftMissing = isMissingOrderByValue(left);
+    const rightMissing = isMissingOrderByValue(right);
+    if (leftMissing || rightMissing) {
+        if (leftMissing && rightMissing) {
+            return 0;
+        }
+        return leftMissing ? 1 : -1;
+    }
+
+    const compared = comparePresentOrderByValues(left, right);
+    return direction === 'desc' ? -compared : compared;
+}
+
+function isMissingOrderByValue(value: any): boolean {
+    if (value === null || value === undefined) {
+        return true;
+    }
+    if (typeof value === 'number') {
+        return Number.isNaN(value);
+    }
+    if (isOrderByDate(value)) {
+        return Number.isNaN(value.getTime());
+    }
+    return false;
+}
+
+function isOrderByDate(value: any): value is Date {
+    return Object.prototype.toString.call(value) === '[object Date]';
+}
+
+function comparePresentOrderByValues(left: any, right: any): number {
+    if (typeof left === 'number' && typeof right === 'number') {
+        if (left < right) {
+            return -1;
+        }
+        if (left > right) {
+            return 1;
+        }
+        return 0;
+    }
+
+    if (typeof left === 'string' && typeof right === 'string') {
+        if (left < right) {
+            return -1;
+        }
+        if (left > right) {
+            return 1;
+        }
+        return 0;
+    }
+
+    if (typeof left === 'boolean' && typeof right === 'boolean') {
+        if (left === right) {
+            return 0;
+        }
+        return left ? 1 : -1;
+    }
+
+    if (isOrderByDate(left) && isOrderByDate(right)) {
+        const leftTime = left.getTime();
+        const rightTime = right.getTime();
+        if (leftTime < rightTime) {
+            return -1;
+        }
+        if (leftTime > rightTime) {
+            return 1;
+        }
+        return 0;
+    }
+
+    return 0;
 }
