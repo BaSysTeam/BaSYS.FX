@@ -22,7 +22,7 @@
 
 ## 4. Сборка и запись результата
 
-- [ ] 4.1 Из корня BaSYS.FX выполнить `npm test` и `npm run build`. Проверка: обе команды завершаются без ошибок; в `dist/index.d.ts` есть `moment`, `BoundaryKind`, `QueryBoundary` и сигнатуры четырёх методов; в `dist/basys-fx.iife.js` есть `exports.moment`. Существующие тесты проходят без правок ожиданий (2.3.35).
+- [x] 4.1 Из корня BaSYS.FX выполнить `npm test` и `npm run build`. Проверка: обе команды завершаются без ошибок; в `dist/index.d.ts` есть `moment`, `BoundaryKind`, `QueryBoundary` и сигнатуры четырёх методов; в `dist/basys-fx.iife.js` есть `exports.moment`. Существующие тесты проходят без правок ожиданий (2.3.35).
 
 - [ ] 4.2 Записать результат в раздел 8 исходной задачи `D:\_WORK\BaSysProject\REPO\BaSysApp\BaSYS.DevDocs\openspec\changes\add-records-moment-boundaries\tasks\2026-11-07-2155-fx-records-moment-stage-2-3-boundary-helpers-task.md`: что изменилось, итоги `npm test` и `npm run build`, версия `1.1.0`, ревизия `git rev-parse HEAD` и SHA-256 `dist/basys-fx.iife.js`. Отметить пункты 2.3.1–2.3.36 и статус файла `done`. В головном `tasks.md` отметить этап 2.3. Для критерия приёмки 6 отметить только библиотечную часть (методы и тесты Jest); строку публикации в §4 не заполнять. Для критерия 7 проверить ошибку `moment` без второго аргумента. Проверка: раздел 8 содержит версию, ревизию и хеш, статус задачи `done`, этап 2.3 отмечен. Публикация в npm не выполняется.
 

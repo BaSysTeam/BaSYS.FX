@@ -4,6 +4,7 @@ import { SelectQueryModel } from './selectQueryModel';
 import { DataTable } from '../table/dataTable';
 import { IQueriesProvider } from './queriesProvider';
 import { FilterItem } from './filterItem';
+import { BoundaryKind, BoundaryOptions, Moment, QueryBoundary, isMoment } from './queryBoundary';
 
 export class SelectQueryBuilder {
     model: SelectQueryModel;
@@ -165,6 +166,54 @@ export class SelectQueryBuilder {
         return this;
     }
 
+    beforeMoment(value: Date | Moment, options?: BoundaryOptions): SelectQueryBuilder {
+        return this.addBoundary('beforeMoment', BoundaryKind.Before, value, options);
+    }
+
+    upToMoment(value: Date | Moment, options?: BoundaryOptions): SelectQueryBuilder {
+        return this.addBoundary('upToMoment', BoundaryKind.UpTo, value, options);
+    }
+
+    fromMoment(value: Date | Moment, options?: BoundaryOptions): SelectQueryBuilder {
+        return this.addBoundary('fromMoment', BoundaryKind.From, value, options);
+    }
+
+    afterMoment(value: Date | Moment, options?: BoundaryOptions): SelectQueryBuilder {
+        return this.addBoundary('afterMoment', BoundaryKind.After, value, options);
+    }
+
+    private addBoundary(method: string, kind: BoundaryKind, value: unknown, options?: BoundaryOptions): SelectQueryBuilder {
+        if (isBoundaryDate(value)) {
+            this.model.boundaries.push(new QueryBoundary({
+                kind,
+                date: toBoundaryDate(value),
+                metaObject: null,
+                number: null,
+                excludeOwn: options?.excludeOwn ?? null,
+                column: options?.column ?? null,
+            }));
+            return this;
+        }
+
+        if (isMoment(value)) {
+            if (options != null && options.column != null) {
+                throw new Error(`${method}: options.column is allowed for date boundaries only.`);
+            }
+
+            this.model.boundaries.push(new QueryBoundary({
+                kind,
+                date: toBoundaryDate(value.date),
+                metaObject: value.metaObject,
+                number: normalizeBoundaryNumber(value.number),
+                excludeOwn: options?.excludeOwn ?? null,
+                column: null,
+            }));
+            return this;
+        }
+
+        throw new Error(`${method}: argument must be a Date or a moment.`);
+    }
+
     async query(): Promise<DataTable> {
 
         if (!this.provider) {
@@ -193,4 +242,21 @@ export class SelectQueryBuilder {
 
         return tableResult;
     }
+}
+
+function isBoundaryDate(value: unknown): value is Date {
+    return Object.prototype.toString.call(value) === '[object Date]'
+        && !isNaN((value as Date).getTime());
+}
+
+function toBoundaryDate(value: Date): string {
+    return new Date(value.getTime()).toLocalISO();
+}
+
+function normalizeBoundaryNumber(value: unknown): number | string | null {
+    if (value === undefined || value === null || value === '' || value === 0) {
+        return null;
+    }
+
+    return value as number | string;
 }
