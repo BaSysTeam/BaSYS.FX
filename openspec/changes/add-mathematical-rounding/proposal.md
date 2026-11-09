@@ -2,31 +2,33 @@
 
 ## Why
 
-Application projects keep repeating their own functions for rounding quantities, hours, and amounts. The example in `Solutions.Construction/metadata/modules/common/module.common.bjs` uses `Math.round(value * factor) / factor`: negative halves round toward positive infinity, and binary multiplication produces an unexpected result for `1.005` and `10.075`.
+Application projects keep repeating their own functions for rounding quantities, hours, and amounts. Construction uses `Math.round(value * factor) / factor`, while BaSYS.FX formatting uses `toFixed`; a shared decimal rounding rule is needed so calculations and displayed values agree on halves and do not expose binary tails at high display precision.
 
 ## What Changes
 
-- Add a public synchronous function `round(value: number, digits: number = 0): number` that rounds to the nearest decimal place; ties resolve away from zero.
-- Support a positive number of fractional digits, zero for integers, and a negative value for tens, hundreds, and beyond. The proposed `digits` range is the integers from `-308` to `324`, covering the decimal orders of `Number`.
-- Round the canonical decimal representation of the input `Number`: `round(1.005, 2) → 1.01`, `round(-1.5) → -2`. The result remains a `number` with IEEE 754 limits.
-- Accept only numeric arguments, with no implicit conversion and no substitution of errors by zero. This was agreed with the user. Pass `NaN` and infinities through as standard math functions do; normalize a zero result to `+0`.
-- Document the contract, examples, and the differences from `Math.round` and formatting; add checks for edge cases and the public export.
+- Add public synchronous `round(value: number, digits: number = 0): number`, rounding the canonical decimal representation of the input to the nearest decimal place, with ties away from zero. Accept integer `digits` from `-308` to `324`.
+- Introduce one internal decimal rounding core used by `round` and `formatNumber`. The numeric branch of `format` continues to delegate to `formatNumber`. Formatting consumes decimal digits directly, without a round-trip through an intermediate `number` or a second rounding step.
+- Accept only numeric arguments in `round`, with explicit type/range checks. Preserve `NaN` and infinities in numeric results and normalize zero to `+0`. Format a rounded zero without a minus sign.
+- **BREAKING**: correct numeric formatting to use the same decimal rule: `formatNumber(1.005)` becomes `"1.01"`, negative halves are symmetric, and high precision pads canonical decimal digits instead of exposing binary tails. `formatNumber(-0.004)` becomes `"0.00"`.
+- Render finite formatted numbers as fixed decimal text, including exponential inputs. Render `NaN`, `Infinity`, and `-Infinity` as literal tokens without grouping. Existing masks, separators, grouping, default precision, and precision normalization/range behavior remain supported.
+- Document numeric rounding and its relationship to formatting, with compatibility examples and contract tests for all three entry points.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `number-rounding`: numeric decimal rounding with explicitly defined rules for ties, precision, argument types, and special values.
+- `number-rounding`: consistent decimal rounding for numeric results and formatted numeric text, including ties, precision, argument checks, special values, and presentation constraints.
 
 ### Modified Capabilities
 
-None: the `openspec/specs` directory does not contain specifications yet.
+None: no existing rounding or numeric-formatting specification is present in the main catalog. The existing `query-boundaries` capability is unaffected.
 
 ## Impact
 
-- `src/common.ts`: the new function and its documentation; `src/index.ts` already exports all of `common`.
-- `tests/round.spec.ts`: a new contract test suite, including an import through the public entry point.
-- `README.md`, `docs/round.md`: usage examples and limits.
-- Dependencies and ES6 compatibility stay as they are. The implementation uses no `BigInt`, no new npm packages, and does not change prototypes.
-- Compatibility: a new API is added. `parseNumber`, `formatNumber`, and `format` keep their existing behavior. String formatting may differ from the new decimal rounding on boundary values.
-- Out of scope: moving functions from Construction, the aliases `round1`/`round2`/`round3`/`round6`, banker's rounding, arbitrary decimal arithmetic, a version change, committing release build artifacts, and publishing the package.
+- `src/numberRounding.ts`: internal decimal core; no new public helper or type export.
+- `src/common.ts`: public `round`, integration of `formatNumber` with the core, and JSDoc. `src/index.ts` already re-exports `common`.
+- `tests/round.spec.ts`, `tests/format.spec.ts`: numeric contract, formatter regression, and cross-API consistency tests.
+- `README.md`, `docs/round.md`, `docs/format.md`: usage, precision differences, changed results, and IEEE 754 limits of numeric output.
+- Dependencies, ES6 build compatibility, and existing public signatures remain unchanged. `parseNumber`, date formatting, boolean formatting, and non-numeric dispatch behavior are unaffected.
+- Compatibility changes also correct malformed grouped exponential/non-finite text: for example, `formatNumber(1e21, { groupSeparator: '' })` becomes `"1000000000000000000000.00"`; `formatNumber(Infinity)` becomes `"Infinity"`. Consumers with saved display expectations must review these changes before release.
+- Out of scope: migrating Construction helpers, rounding aliases, additional rounding modes, arbitrary decimal arithmetic, changing mask syntax, changing package versions, committing release build artifacts, and publishing. Release/version selection is a separate process and must account for the observable formatting changes.

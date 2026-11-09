@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provide one decimal rounding operation for numeric values used in BaSYS application calculations, with predictable tie behavior and explicit limits of the `Number` type.
+Provide consistent decimal rounding for numeric calculations and formatted numeric text in BaSYS applications, with predictable tie behavior and explicit limits of numeric output and display precision.
 
 ## ADDED Requirements
 
@@ -133,3 +133,116 @@ The function SHALL apply the same decimal contract to finite numbers across the 
 
 - **WHEN** `round(Number.MIN_VALUE, 324)`, `round(Number.MIN_VALUE, 323)`, and `round(-Number.MIN_VALUE, 322)` are called
 - **THEN** the results equal `Number.MIN_VALUE`, `1e-323`, and positive zero respectively
+
+### Requirement: Consistent rounding for calculations and numeric formatting
+
+For finite numeric input, `formatNumber` SHALL apply the same canonical-decimal interpretation and nearest-with-ties-away-from-zero rule as `round` at the effective display precision. It SHALL render the rounded decimal value directly, without rounding an intermediate binary `number` again. The numeric branch of `format` SHALL produce the same text as `formatNumber` for the same arguments.
+
+#### Scenario: Decimal ties agree across all entry points
+
+- **WHEN** `round(1.005, 2)`, `formatNumber(1.005)`, and `format(1.005)` are called
+- **THEN** their results equal `1.01`, `"1.01"`, and `"1.01"` respectively
+
+#### Scenario: Negative decimal ties are symmetric
+
+- **WHEN** `formatNumber(-1.005)`, `formatNumber(2.675)`, `formatNumber(-2.675)`, and `format(-1.005, '0.00')` are called
+- **THEN** their results equal `"-1.01"`, `"2.68"`, `"-2.68"`, and `"-1.01"` respectively
+
+#### Scenario: Ties between zero and one display unit
+
+- **WHEN** `formatNumber(0.005)`, `formatNumber(-0.005)`, `formatNumber(0.5, '0')`, and `formatNumber(-0.5, '0')` are called
+- **THEN** their results equal `"0.01"`, `"-0.01"`, `"1"`, and `"-1"` respectively
+
+### Requirement: Fixed decimal text retains decimal digits
+
+For a finite input, numeric formatting SHALL return plain decimal text with exactly the effective number of fractional digits, padding zeros as necessary. It SHALL retain the canonical decimal digits selected by the rounding rule, including at high display precision and for inputs written in exponential notation. Formatting SHALL NOT expose binary expansion tails or use exponential notation.
+
+#### Scenario: High precision pads a canonical decimal
+
+- **WHEN** `round(0.1, 20)`, `formatNumber(0.1, { decimals: 20, groupSeparator: '' })`, and `format(0.1, { decimals: 20, groupSeparator: '' })` are called
+- **THEN** the numeric result is `0.1` and both strings equal `"0.10000000000000000000"`
+
+#### Scenario: Carry keeps the requested fractional width
+
+- **WHEN** `formatNumber(9.995)` and `formatNumber(1.2)` are called
+- **THEN** their results equal `"10.00"` and `"1.20"` respectively
+
+#### Scenario: Large exponential input uses plain decimal text
+
+- **WHEN** `formatNumber(1e21, { groupSeparator: '' })` is called
+- **THEN** the result equals `"1000000000000000000000.00"`
+
+### Requirement: Formatted zero has no negative sign
+
+Numeric formatting SHALL normalize a rounded zero to unsigned text, including negative zero input and negative inputs whose decimal rounding produces zero. Fractional padding, decimal separators, and masks SHALL still apply to that zero.
+
+#### Scenario: Negative magnitudes round to unsigned zero
+
+- **WHEN** `formatNumber(-0)`, `formatNumber(-0.004)`, `format(-0.004)`, and `formatNumber(-0.49, '0')` are called
+- **THEN** their results equal `"0.00"`, `"0.00"`, `"0.00"`, and `"0"` respectively
+
+#### Scenario: Zero uses the selected decimal separator
+
+- **WHEN** `formatNumber(-0.004, { decimalSeparator: ',' })` is called
+- **THEN** the result equals `"0,00"`
+
+### Requirement: Formatting masks and separators remain supported
+
+`formatNumber` and the numeric branch of `format` SHALL retain existing public signatures, mask parsing, option defaults, grouping, and separator customization. Rounding SHALL be applied at the precision selected by those existing inputs before presentation separators are inserted.
+
+#### Scenario: A mask selects precision and grouping
+
+- **WHEN** `formatNumber(1000.005, '#,##0.00')`, `format(1000.005, '#,##0.00')`, and `formatNumber(1.005, '0.00')` are called
+- **THEN** their results equal `"1 000.01"`, `"1 000.01"`, and `"1.01"` respectively
+
+#### Scenario: Custom separators use the same rounding rule
+
+- **WHEN** `formatNumber(1234.565, { decimalSeparator: ',', groupSeparator: '.' })` and `formatNumber(1234.565, { groupSeparator: '' })` are called
+- **THEN** their results equal `"1.234,57"` and `"1234.57"` respectively
+
+### Requirement: Formatting precision preserves its existing normalization
+
+Formatting SHALL retain its default precision of two and existing `toFixed`-compatible precision coercion, truncation, and range checking: numeric `NaN` means zero, finite fractions truncate toward zero, and the normalized precision MUST be in `0..100`. Nullish option precision SHALL select the default. Invalid normalized precision SHALL throw `RangeError`, including for non-finite input values. The wider `round` precision range SHALL NOT widen formatting precision.
+
+#### Scenario: Formatting normalizes fractional precision
+
+- **WHEN** `formatNumber(1.005, { decimals: 2.9 })`, `formatNumber(1.005, { decimals: -0.9 })`, and `formatNumber(1.005, { decimals: NaN })` are called
+- **THEN** their results equal `"1.01"`, `"1"`, and `"1"` respectively
+
+#### Scenario: Formatting keeps default and upper-bound precision
+
+- **WHEN** `formatNumber(1.2, { decimals: undefined })` and `formatNumber(1, { decimals: 100 })` are called
+- **THEN** the first result is `"1.20"` and the second is `"1."` followed by exactly 100 zero digits
+
+#### Scenario: Formatting rejects precision outside its own range
+
+- **WHEN** numeric formatting is called with option `decimals` equal to `-1`, `101`, `Infinity`, or `-Infinity`
+- **THEN** each call throws `RangeError`, also when the input value is `NaN` or infinite
+
+### Requirement: Non-finite numbers are formatted as literal tokens
+
+For valid display precision, `formatNumber` and the numeric branch of `format` SHALL render `NaN`, `Infinity`, and `-Infinity` as the exact tokens `"NaN"`, `"Infinity"`, and `"-Infinity"`. Grouping, separators, and fractional padding SHALL NOT modify these tokens.
+
+#### Scenario: Default formatting preserves whole tokens
+
+- **WHEN** `formatNumber(NaN)`, `formatNumber(Infinity)`, and `format(-Infinity)` are called
+- **THEN** the results equal `"NaN"`, `"Infinity"`, and `"-Infinity"` respectively
+
+#### Scenario: Custom presentation does not split a special token
+
+- **WHEN** `formatNumber(-Infinity, { decimals: 3, decimalSeparator: ',', groupSeparator: '.' })` is called
+- **THEN** the result equals `"-Infinity"`
+
+### Requirement: Non-numeric utilities retain their existing behavior
+
+The rounding integration SHALL preserve the behavior of `parseNumber`, `formatDate`, `formatBoolean`, the date and boolean branches of `format`, and its error for unsupported types. No new rounding or format option SHALL be added to those APIs.
+
+#### Scenario: Date and boolean formatting still dispatch normally
+
+- **WHEN** `format(new Date(2026, 0, 5), 'dd.MM.yyyy')` and `format(true, { trueValue: 'Yes', falseValue: 'No' })` are called
+- **THEN** the results equal `"05.01.2026"` and `"Yes"` respectively
+
+#### Scenario: Unsupported formatting input still fails
+
+- **WHEN** JavaScript calls `format('hello')`
+- **THEN** it throws the existing unsupported-type error
