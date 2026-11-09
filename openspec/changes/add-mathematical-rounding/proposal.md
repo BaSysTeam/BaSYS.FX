@@ -2,31 +2,31 @@
 
 ## Why
 
-В прикладных проектах повторяются собственные функции округления количеств, часов и сумм. Пример из `Solutions.Construction/metadata/modules/common/module.common.bjs` использует `Math.round(value * factor) / factor`: отрицательные половины округляются к положительной бесконечности, а двоичное умножение даёт неожиданный результат для `1.005` и `10.075`.
+Application projects keep repeating their own functions for rounding quantities, hours, and amounts. The example in `Solutions.Construction/metadata/modules/common/module.common.bjs` uses `Math.round(value * factor) / factor`: negative halves round toward positive infinity, and binary multiplication produces an unexpected result for `1.005` and `10.075`.
 
 ## What Changes
 
-- Добавить публичную синхронную функцию `round(value: number, digits: number = 0): number` для округления к ближайшему десятичному разряду; равные расстояния разрешать от нуля.
-- Поддержать положительное количество знаков после запятой, ноль для целых и отрицательное для десятков, сотен и далее. Предлагаемый диапазон `digits`: целые от `-308` до `324`, покрывающие десятичные порядки `Number`.
-- Округлять каноническую десятичную запись входного `Number`: `round(1.005, 2) → 1.01`, `round(-1.5) → -2`. Результат остаётся `number` с ограничениями IEEE 754.
-- Принимать только числовые аргументы без неявного преобразования и замены ошибок нулём — это согласовано с пользователем. Передавать `NaN` и бесконечности как в стандартных математических функциях; нулевой результат нормализовать в `+0`.
-- Описать контракт, примеры и отличия от `Math.round` и форматирования; добавить проверки граничных случаев и публичного экспорта.
+- Add a public synchronous function `round(value: number, digits: number = 0): number` that rounds to the nearest decimal place; ties resolve away from zero.
+- Support a positive number of fractional digits, zero for integers, and a negative value for tens, hundreds, and beyond. The proposed `digits` range is the integers from `-308` to `324`, covering the decimal orders of `Number`.
+- Round the canonical decimal representation of the input `Number`: `round(1.005, 2) → 1.01`, `round(-1.5) → -2`. The result remains a `number` with IEEE 754 limits.
+- Accept only numeric arguments, with no implicit conversion and no substitution of errors by zero. This was agreed with the user. Pass `NaN` and infinities through as standard math functions do; normalize a zero result to `+0`.
+- Document the contract, examples, and the differences from `Math.round` and formatting; add checks for edge cases and the public export.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `number-rounding`: числовое десятичное округление с явно определёнными правилами для половин, точности, типов аргументов и особых значений.
+- `number-rounding`: numeric decimal rounding with explicitly defined rules for ties, precision, argument types, and special values.
 
 ### Modified Capabilities
 
-Нет: каталог `openspec/specs` пока не содержит спецификаций.
+None: the `openspec/specs` directory does not contain specifications yet.
 
 ## Impact
 
-- `src/common.ts`: новая функция и её документация; `src/index.ts` уже экспортирует весь `common`.
-- `tests/round.spec.ts`: новый набор контрактных тестов, включая импорт через публичную точку входа.
-- `README.md`, `docs/round.md`: примеры использования и ограничения.
-- Зависимости и ES6-совместимость сохраняются; реализация без `BigInt`, новых npm-пакетов и изменения прототипов.
-- Совместимость: добавляется новый API. `parseNumber`, `formatNumber` и `format` сохраняют существующее поведение; строковое форматирование может отличаться от нового десятичного округления на пограничных значениях.
-- Вне изменения: перенос функций из Construction, алиасы `round1/round2/round3/round6`, режим банковского округления, произвольная десятичная арифметика, изменение версии, сборка релизных артефактов в Git и публикация пакета.
+- `src/common.ts`: the new function and its documentation; `src/index.ts` already exports all of `common`.
+- `tests/round.spec.ts`: a new contract test suite, including an import through the public entry point.
+- `README.md`, `docs/round.md`: usage examples and limits.
+- Dependencies and ES6 compatibility stay as they are. The implementation uses no `BigInt`, no new npm packages, and does not change prototypes.
+- Compatibility: a new API is added. `parseNumber`, `formatNumber`, and `format` keep their existing behavior. String formatting may differ from the new decimal rounding on boundary values.
+- Out of scope: moving functions from Construction, the aliases `round1`/`round2`/`round3`/`round6`, banker's rounding, arbitrary decimal arithmetic, a version change, committing release build artifacts, and publishing the package.

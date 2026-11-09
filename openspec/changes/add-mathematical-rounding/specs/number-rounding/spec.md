@@ -2,98 +2,114 @@
 
 ## Purpose
 
-Предоставить единое десятичное округление числовых значений для расчётов в прикладных проектах BaSYS, с предсказуемым поведением на половинах и явно заданными ограничениями типа Number.
+Provide one decimal rounding operation for numeric values used in BaSYS application calculations, with predictable tie behavior and explicit limits of the `Number` type.
 
 ## ADDED Requirements
 
-### Requirement: Публичная функция числового округления
+### Requirement: Public numeric rounding function
 
-Пакет SHALL экспортировать синхронную функцию `round(value: number, digits?: number): number`. Пропущенный или явно переданный `undefined` во втором аргументе SHALL означать `digits = 0`. Положительная точность задаёт знаки после запятой, отрицательная — разряды перед запятой. Функция SHALL возвращать число без дописывания конечных нулей.
+The package SHALL export a synchronous function `round(value: number, digits?: number): number`. A missing second argument, or an explicit `undefined`, SHALL mean `digits = 0`. A positive precision sets digits after the decimal point. A negative precision sets places before the decimal point. The function SHALL return a number without appending trailing zeros.
 
-#### Scenario: Доступ через пакет и точность по умолчанию
-- **WHEN** потребитель импортирует `round` из пакета и вызывает `round(12.6)` или `round(12.6, undefined)`
-- **THEN** каждый вызов возвращает число `13`
+#### Scenario: Package access and default precision
 
-#### Scenario: Положительная и отрицательная точность
-- **WHEN** вызваны `round(1234.567, 2)`, `round(1234.567, -2)` и `round(1.2, 2)`
-- **THEN** результаты равны `1234.57`, `1200` и числу `1.2` соответственно
+- **WHEN** a consumer imports `round` from the package and calls `round(12.6)` or `round(12.6, undefined)`
+- **THEN** each call returns the number `13`
 
-### Requirement: Ближайшее значение и половины от нуля
+#### Scenario: Positive and negative precision
 
-Функция SHALL выбирать ближайшее кратное `10^(-digits)` в десятичной арифметике. При равных расстояниях функция SHALL выбирать значение с большим модулем. Правило SHALL быть симметричным относительно знака.
+- **WHEN** `round(1234.567, 2)`, `round(1234.567, -2)`, and `round(1.2, 2)` are called
+- **THEN** the results equal `1234.57`, `1200`, and the number `1.2` respectively
 
-#### Scenario: Округление до целого по обе стороны половины
-- **WHEN** округляются `1.49`, `1.5`, `1.51`, `-1.49`, `-1.5` и `-1.51` с точностью `0`
-- **THEN** результаты равны `1`, `2`, `2`, `-1`, `-2` и `-2` соответственно
+### Requirement: Nearest value, with ties away from zero
 
-#### Scenario: Половины в дробной и целой части
-- **WHEN** вызваны `round(1.25, 1)`, `round(-1.25, 1)`, `round(1250, -2)` и `round(-1250, -2)`
-- **THEN** результаты равны `1.3`, `-1.3`, `1300` и `-1300` соответственно
+The function SHALL choose the nearest multiple of `10^(-digits)` in decimal arithmetic. When the distances are equal, the function SHALL choose the value with the larger absolute value. The rule SHALL be symmetric with respect to sign.
 
-### Requirement: Десятичная интерпретация Number
+#### Scenario: Rounding to an integer on both sides of a tie
 
-Функция SHALL округлять десятичное значение канонической строки `String(value)` конечного входного числа, включая экспоненциальную запись. Полученный десятичный результат SHALL преобразовываться в ближайшее представимое `number` по правилам ECMAScript. Входное число, уже соответствующее точности, SHALL сохраняться, кроме нормализации нуля.
+- **WHEN** `1.49`, `1.5`, `1.51`, `-1.49`, `-1.5`, and `-1.51` are rounded with precision `0`
+- **THEN** the results equal `1`, `2`, `2`, `-1`, `-2`, and `-2` respectively
 
-#### Scenario: Типичные десятичные половины
-- **WHEN** вызваны `round(1.005, 2)`, `round(2.675, 2)`, `round(1.255, 2)` и `round(10.075, 2)`, а также те же вызовы с отрицательными аргументами
-- **THEN** положительные результаты равны `1.01`, `2.68`, `1.26`, `10.08`, а отрицательные равны соответствующим числам с минусом
+#### Scenario: Ties in the fractional and integer parts
 
-#### Scenario: Значение непосредственно ниже половины
-- **WHEN** вызван `round(1.4999999999999998)`
-- **THEN** результат равен `1`, без искусственного приближения к половине
+- **WHEN** `round(1.25, 1)`, `round(-1.25, 1)`, `round(1250, -2)`, and `round(-1250, -2)` are called
+- **THEN** the results equal `1.3`, `-1.3`, `1300`, and `-1300` respectively
 
-#### Scenario: Экспоненциальная запись и перенос разряда
-- **WHEN** вызваны `round(1.25e-7, 8)`, `round(-1.25e-7, 8)` и `round(9.995, 2)`
-- **THEN** результаты равны `1.3e-7`, `-1.3e-7` и `10`
+### Requirement: Decimal interpretation of Number
 
-### Requirement: Проверка типов аргументов
+The function SHALL round the decimal value of the canonical `String(value)` of a finite input, including exponential notation. The resulting decimal value SHALL be converted to the nearest representable `number` by ECMAScript rules. An input that already matches the precision SHALL be preserved, except for zero normalization.
 
-Функция SHALL принимать только примитивный `number` в `value` и `digits`, кроме `undefined` для точности по умолчанию. Любой другой тип аргумента SHALL приводить к `TypeError` без неявного преобразования и замены нулём. Отсутствующий `value` SHALL приводить к `TypeError`.
+#### Scenario: Typical decimal ties
 
-#### Scenario: Нечисловой вход из JavaScript
-- **WHEN** как `value` переданы строка `'1.25'`, `null`, `undefined`, `true`, объект, массив, `new Number(1)` или `Symbol()`, либо вызов сделан без аргументов
-- **THEN** каждый вызов выбрасывает `TypeError`
+- **WHEN** `round(1.005, 2)`, `round(2.675, 2)`, `round(1.255, 2)`, and `round(10.075, 2)` are called, and the same calls are made with negative arguments
+- **THEN** the positive results equal `1.01`, `2.68`, `1.26`, and `10.08`, and the negative results equal the corresponding numbers with a minus sign
 
-#### Scenario: Нечисловая точность
-- **WHEN** при числовом `value` как `digits` переданы строка `'2'`, `null`, `false` или объект
-- **THEN** каждый вызов выбрасывает `TypeError`
+#### Scenario: Value immediately below a tie
 
-### Requirement: Допустимая точность
+- **WHEN** `round(1.4999999999999998)` is called
+- **THEN** the result equals `1`, with no artificial pull toward the tie
 
-Числовой аргумент `digits` SHALL быть целым в диапазоне от `-308` до `324` включительно. Дробная, не конечная или выходящая за диапазон точность SHALL приводить к `RangeError`. Проверки типов и точности SHALL выполняться до обработки особых числовых значений `value`.
+#### Scenario: Exponential notation and digit carry
 
-#### Scenario: Недопустимая числовая точность
-- **WHEN** `digits` равен `1.5`, `NaN`, `Infinity`, `-Infinity`, `-309` или `325`
-- **THEN** вызов выбрасывает `RangeError`, в том числе при `value = NaN` или `Infinity`
+- **WHEN** `round(1.25e-7, 8)`, `round(-1.25e-7, 8)`, and `round(9.995, 2)` are called
+- **THEN** the results equal `1.3e-7`, `-1.3e-7`, and `10`
 
-#### Scenario: Обе границы допустимы
-- **WHEN** вызваны `round(1, -308)` и `round(1, 324)`
-- **THEN** результаты равны `0` и `1` соответственно
+### Requirement: Argument type checks
 
-### Requirement: Особые значения и нормализация нуля
+The function SHALL accept only a primitive `number` for `value` and `digits`, except `undefined` for the default precision. Any other argument type SHALL cause a `TypeError`, with no implicit conversion and no substitution by zero. A missing `value` SHALL cause a `TypeError`.
 
-При допустимой точности функция SHALL сохранять `NaN`, `Infinity` и `-Infinity`. Любой нулевой результат, включая входной `-0` и округление отрицательной малой величины, SHALL быть положительным нулём.
+#### Scenario: Non-numeric JavaScript input
 
-#### Scenario: Не конечные значения сохраняются
-- **WHEN** округляются `NaN`, `Infinity` и `-Infinity` с допустимой точностью
-- **THEN** результаты равны `NaN`, `Infinity` и `-Infinity` соответственно
+- **WHEN** the string `'1.25'`, `null`, `undefined`, `true`, an object, an array, `new Number(1)`, or `Symbol()` is passed as `value`, or the function is called with no arguments
+- **THEN** each call throws `TypeError`
 
-#### Scenario: Отрицательный ноль устраняется
-- **WHEN** вызваны `round(-0)`, `round(0)` и `round(-0.004, 2)`
-- **THEN** каждый результат удовлетворяет `Object.is(result, 0) === true`
+#### Scenario: Non-numeric precision
 
-### Requirement: Крайние значения диапазона Number
+- **WHEN** the string `'2'`, `null`, `false`, or an object is passed as `digits` for a numeric `value`
+- **THEN** each call throws `TypeError`
 
-Функция SHALL обрабатывать конечные числа по тому же десятичному контракту на всём диапазоне `Number`, без ложного переполнения из-за промежуточного масштабирования. Если окончательный округлённый результат не представим конечным `Number`, функция SHALL возвращать бесконечность соответствующего знака.
+### Requirement: Allowed precision
 
-#### Scenario: Большое число не переполняется при сохранении точности
-- **WHEN** вызваны `round(Number.MAX_VALUE, 2)`, `round(-Number.MAX_VALUE, 324)` и `round(1e308, -308)`
-- **THEN** результаты равны `Number.MAX_VALUE`, `-Number.MAX_VALUE` и `1e308` соответственно
+A numeric `digits` argument SHALL be an integer in the inclusive range from `-308` to `324`. A fractional, non-finite, or out-of-range precision SHALL cause a `RangeError`. Type and precision checks SHALL run before special numeric values of `value` are handled.
 
-#### Scenario: Окончательный результат переполняется
-- **WHEN** вызваны `round(Number.MAX_VALUE, -308)` и `round(-Number.MAX_VALUE, -308)`
-- **THEN** результаты равны `Infinity` и `-Infinity` соответственно
+#### Scenario: Invalid numeric precision
 
-#### Scenario: Субнормальные числа
-- **WHEN** вызваны `round(Number.MIN_VALUE, 324)`, `round(Number.MIN_VALUE, 323)` и `round(-Number.MIN_VALUE, 322)`
-- **THEN** результаты равны `Number.MIN_VALUE`, `1e-323` и положительному нулю соответственно
+- **WHEN** `digits` is `1.5`, `NaN`, `Infinity`, `-Infinity`, `-309`, or `325`
+- **THEN** the call throws `RangeError`, including when `value` is `NaN` or `Infinity`
+
+#### Scenario: Both bounds are allowed
+
+- **WHEN** `round(1, -308)` and `round(1, 324)` are called
+- **THEN** the results equal `0` and `1` respectively
+
+### Requirement: Special values and zero normalization
+
+For an allowed precision, the function SHALL preserve `NaN`, `Infinity`, and `-Infinity`. Any zero result, including an input of `-0` and rounding a small negative magnitude, SHALL be positive zero.
+
+#### Scenario: Non-finite values are preserved
+
+- **WHEN** `NaN`, `Infinity`, and `-Infinity` are rounded with an allowed precision
+- **THEN** the results equal `NaN`, `Infinity`, and `-Infinity` respectively
+
+#### Scenario: Negative zero is removed
+
+- **WHEN** `round(-0)`, `round(0)`, and `round(-0.004, 2)` are called
+- **THEN** each result satisfies `Object.is(result, 0) === true`
+
+### Requirement: Extreme values of the Number range
+
+The function SHALL apply the same decimal contract to finite numbers across the whole `Number` range, without a false overflow caused by intermediate scaling. If the final rounded result is not representable as a finite `Number`, the function SHALL return infinity of the corresponding sign.
+
+#### Scenario: A large number does not overflow when precision is kept
+
+- **WHEN** `round(Number.MAX_VALUE, 2)`, `round(-Number.MAX_VALUE, 324)`, and `round(1e308, -308)` are called
+- **THEN** the results equal `Number.MAX_VALUE`, `-Number.MAX_VALUE`, and `1e308` respectively
+
+#### Scenario: The final result overflows
+
+- **WHEN** `round(Number.MAX_VALUE, -308)` and `round(-Number.MAX_VALUE, -308)` are called
+- **THEN** the results equal `Infinity` and `-Infinity` respectively
+
+#### Scenario: Subnormal numbers
+
+- **WHEN** `round(Number.MIN_VALUE, 324)`, `round(Number.MIN_VALUE, 323)`, and `round(-Number.MIN_VALUE, 322)` are called
+- **THEN** the results equal `Number.MIN_VALUE`, `1e-323`, and positive zero respectively

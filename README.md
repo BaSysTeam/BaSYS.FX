@@ -57,8 +57,8 @@ const turnover = await from('records.su_request_saldo')
 
 OpenSpec planning artifacts are shared in `openspec/`. Cursor workflows are in
 `.cursor/`; Codex skills are in `.agents/skills/`. Both use the configuration in
-`openspec/config.yaml`, including Russian artifact text with English structural
-headings and SHALL/MUST keywords.
+`openspec/config.yaml`. Artifact text, structural headings, and SHALL/MUST
+keywords are in English.
 
 The workflows require the OpenSpec CLI. If `openspec --version` is unavailable
 in the terminal used by your agent, install the version used to generate these
@@ -84,7 +84,7 @@ appear, restart Codex.
 For example, ask Codex:
 
 ```text
-$openspec-propose Опиши изменение: <идея>
+$openspec-propose Describe the change: <idea>
 $openspec-apply-change <change-name>
 ```
 

@@ -2,91 +2,91 @@
 
 ## Context
 
-См. `proposal.md` — зачем нужно изменение. Поведение — в `specs/query-boundaries/spec.md`. Контракт полей и смысл границ заданы головным изменением и здесь не переопределяются:
+See `proposal.md` for why this change is needed. Behavior is in `specs/query-boundaries/spec.md`. Field contracts and the meaning of boundaries are set by the parent change and are not redefined here:
 
-- D5 и D7: `D:\_WORK\BaSysProject\REPO\BaSysApp\BaSYS.DevDocs\openspec\changes\add-records-moment-boundaries\design.md`
-- Задача этапа 2.3: `...\tasks\2026-11-07-2155-fx-records-moment-stage-2-3-boundary-helpers-task.md`
+- D5 and D7: `D:\_WORK\BaSysProject\REPO\BaSysApp\BaSYS.DevDocs\openspec\changes\add-records-moment-boundaries\design.md`
+- Stage 2.3 task: `...\tasks\2026-11-07-2155-fx-records-moment-stage-2-3-boundary-helpers-task.md`
 
-Сейчас `SelectQueryBuilder` собирает `SelectQueryModel` и отдаёт её в `IQueriesProvider.execute` как JSON. Конструктор модели копирует `parameters` и `filters` в новые объекты. Даты в `parameter()` определяются через `instanceof Date` и сразу вызывают `toLocalISO()`. `toLocalISO()` (`src/dateExtensions.ts`) уже пишет `YYYY-MM-DDTHH:mm:ss` по местному времени и отбрасывает миллисекунды. Сборка — Rollup из `src/index.ts` в `dist/basys-fx.{esm,umd,iife}.js` и `dist/index.d.ts`, имя бандла `BaSYSFX`. Тесты — Jest, образец `tests/selectQueryBuilder.withFilters.spec.ts`: `new SelectQueryBuilder(null as any)` и проверка `builder.model`.
+Today `SelectQueryBuilder` builds a `SelectQueryModel` and passes it to `IQueriesProvider.execute` as JSON. The model constructor copies `parameters` and `filters` into new objects. Dates in `parameter()` are detected with `instanceof Date` and immediately call `toLocalISO()`. `toLocalISO()` (`src/dateExtensions.ts`) already writes `YYYY-MM-DDTHH:mm:ss` in local time and drops milliseconds. The build is Rollup from `src/index.ts` into `dist/basys-fx.{esm,umd,iife}.js` and `dist/index.d.ts`, with the bundle name `BaSYSFX`. Tests are Jest. The sample is `tests/selectQueryBuilder.withFilters.spec.ts`: `new SelectQueryBuilder(null as any)` and an assertion on `builder.model`.
 
-`package.json` — `1.0.6`. В `package-lock.json` собственная версия пакета (корень и `packages[""]`) осталась `1.0.3`. Вхождения `1.0.6` в lock-файле относятся к чужим пакетам `@types/estree` и `inflight`.
+`package.json` is `1.0.6`. In `package-lock.json` the package's own version (the root and `packages[""]`) is still `1.0.3`. The `1.0.6` entries in the lockfile belong to other packages, `@types/estree` and `inflight`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Собрать поле `boundaries` так, чтобы JSON совпал с `QueryBoundaryDto` этапа 2.2: camelCase, `kind` числом, отсутствующие значения как `null`.
-- Принять `Date` из другого контекста движка и не хранить в моменте ссылку на шапку.
-- Оставить `where`, `parameters` и `filters` нетронутыми.
+- Build the `boundaries` field so that the JSON matches the stage 2.2 `QueryBoundaryDto`: camelCase, `kind` as a number, and missing values as `null`.
+- Accept a `Date` from another engine context, and do not store a reference to the header inside a moment.
+- Leave `where`, `parameters`, and `filters` untouched.
 
 **Non-Goals:**
 
-- SQL, параметры `p_bnd_*`, выбор колонок регистра и значение `excludeOwn` по умолчанию. Это сервер, D6 и этап 2.2.
-- Короткая форма `moment($h)` и контекст формы. Это этап 2.4; `globalThis` для контекста отклонён в D8.
-- Изменение `toLocalISO`, `endMonth` и остальных расширений дат.
-- Публикация пакета в npm.
+- SQL, `p_bnd_*` parameters, register column selection, and the default value of `excludeOwn`. Those belong to the server, D6, and stage 2.2.
+- The short form `moment($h)` and form context. That is stage 2.4. Using `globalThis` for context was rejected in D8.
+- Changing `toLocalISO`, `endMonth`, or the other date extensions.
+- Publishing the package to npm.
 
 ## Decisions
 
-### 1. Отдельный модуль `src/query/queryBoundary.ts`
+### 1. A separate module, `src/query/queryBoundary.ts`
 
-В нём `BoundaryKind`, `Moment`, `BoundaryOptions`, `QueryBoundary`, `moment`, `isMoment` и неэкспортируемые проверки даты. `src/index.ts` добавляет `export * from './query/queryBoundary'`. Отдельный файл не раздувает модель и попадает в d.ts и в IIFE вместе с остальным публичным входом: в `dist/basys-fx.iife.js` должен появиться `exports.moment`.
+It holds `BoundaryKind`, `Moment`, `BoundaryOptions`, `QueryBoundary`, `moment`, `isMoment`, and unexported date checks. `src/index.ts` adds `export * from './query/queryBoundary'`. A separate file does not inflate the model, and it is included in the d.ts and in the IIFE together with the rest of the public entry: `exports.moment` must appear in `dist/basys-fx.iife.js`.
 
-Альтернатива — описать границу внутри `selectQueryModel.ts`. Отклонена: `moment` и `isMoment` не являются моделью запроса, а серверные скрипты получают `moment` как экспорт пакета.
+The alternative is to describe a boundary inside `selectQueryModel.ts`. Rejected: `moment` and `isMoment` are not the query model, and server scripts receive `moment` as a package export.
 
-### 2. Дата проверяется по `toString`, сериализуется локальной копией
+### 2. A date is checked by `toString` and serialized from a local copy
 
-Внутренняя `toBoundaryDate(value)` равна `new Date(value.getTime()).toLocalISO()`. Допустимая дата — `Object.prototype.toString.call(value) === '[object Date]'` и `!isNaN(value.getTime())`. Методы расширений у переданной даты не вызываются: FX дописывает их в `Date.prototype` своего контекста.
+The internal `toBoundaryDate(value)` equals `new Date(value.getTime()).toLocalISO()`. A date is valid when `Object.prototype.toString.call(value) === '[object Date]'` and `!isNaN(value.getTime())`. Extension methods of the passed date are not called: FX attaches them to `Date.prototype` of its own context.
 
-`parameter()` по-прежнему использует `instanceof`. Менять его нельзя: у дат параметров расширения уже есть, и это другой контракт.
+`parameter()` still uses `instanceof`. It must not change: parameter dates already have the extensions, and that is a different contract.
 
-Альтернатива — звать `value.toLocalISO()` напрямую. Отклонена: дата из ClearScript или `vm.runInNewContext` не имеет этого метода и даёт `TypeError`.
+The alternative is to call `value.toLocalISO()` directly. Rejected: a date from ClearScript or `vm.runInNewContext` does not have that method and throws `TypeError`.
 
-### 3. Пустые поля — `null`, ноль вида не теряется
+### 3. Empty fields are `null`, and a zero kind is kept
 
-Конструктор `QueryBoundary(params)` копирует шесть полей и заменяет только `undefined` на `null` (`?? null`). `kind: 0` (`Before`) и `excludeOwn: false` обязаны сохраниться, поэтому `||` не используется. `JSON.stringify` тогда не выбрасывает поля.
+The `QueryBoundary(params)` constructor copies the six fields and replaces only `undefined` with `null` (`?? null`). `kind: 0` (`Before`) and `excludeOwn: false` must be preserved, so `||` is not used. `JSON.stringify` then does not drop the fields.
 
-Пустой номер (`undefined`, `null`, `''`, `0`) сводится к `null` в `moment` и при разборе момента в построителе. Конструктор сам ноль номера не трактует как пустоту: в JSON новой операции уже лежит `null`.
+An empty number (`undefined`, `null`, `''`, `0`) collapses to `null` in `moment` and when the builder reads a moment. The constructor itself does not treat a number of zero as empty: JSON for a new operation already contains `null`.
 
-### 4. Четыре метода — одна внутренняя точка записи
+### 4. Four methods share one internal write
 
-`beforeMoment`, `upToMoment`, `fromMoment`, `afterMoment` возвращают `this` и передают свой `BoundaryKind` в общий метод. Он различает дату и момент, проверяет `options.column` до записи и только потом делает `push`. После ошибки `model.boundaries` тот же массив, что до вызова.
+`beforeMoment`, `upToMoment`, `fromMoment`, and `afterMoment` return `this` and pass their `BoundaryKind` to a shared method. That method distinguishes a date from a moment, checks `options.column` before writing, and only then calls `push`. After an error, `model.boundaries` is the same array as before the call.
 
-`excludeOwn` записывается как `true`/`false` либо `null`. Имя `column` для даты передаётся как есть.
+`excludeOwn` is stored as `true`, `false`, or `null`. A `column` name for a date is passed through as given.
 
-Альтернатива — собирать границу в `where`. Отклонена головным D6: условие и параметры строит сервер.
+The alternative is to assemble the boundary inside `where`. Rejected by parent D6: the server builds the condition and the parameters.
 
-### 5. `moment` не замыкает шапку
+### 5. `moment` does not close over the header
 
-Возвращается новый объект. `date` — `new Date(header.date.getTime())` для объекта даты и результат `new Date(value)` для строки. `header` и исходный объект даты в момент не попадают. Без строкового `metaObject` или без объекта шапки функция бросает ошибки из спецификации и не читает контекст формы.
+A new object is returned. `date` is `new Date(header.date.getTime())` for a date object, and the result of `new Date(value)` for a string. Neither `header` nor the original date object is placed in the moment. Without a string `metaObject`, or without a header object, the function throws the errors from the specification and does not read form context.
 
-`isMoment` — не-`Date` объект с допустимой датой и непустой строкой `metaObject`. Им пользуется построитель, поэтому момент можно собрать вручную.
+`isMoment` is true for a non-`Date` object with a valid date and a non-empty `metaObject` string. The builder uses it, so a moment can also be assembled by hand.
 
-### 6. Модель всегда имеет массив границ
+### 6. The model always has a boundary array
 
-`SelectQueryModel.boundaries` в конструкторе — `[]` либо `data.boundaries.map(item => new QueryBoundary(item))`. Отсутствующее поле даёт пустой список, старый JSON без `boundaries` восстанавливается. Порядок элементов — порядок вызовов.
+`SelectQueryModel.boundaries` in the constructor is `[]`, or `data.boundaries.map(item => new QueryBoundary(item))`. A missing field yields an empty list, so old JSON without `boundaries` is restored. Element order is call order.
 
-### 7. Версия `1.1.0` только у самого пакета
+### 7. Version `1.1.0` applies only to this package
 
-Меняются `package.json` `version` и две собственные записи `@basysteam/basys-fx` в `package-lock.json` (корень и `packages[""]`, сейчас `1.0.3`). Записи зависимостей с версией `1.0.6` не трогаются. Минорная версия: публичные члены только добавляются.
+`package.json` `version` changes, and so do the two identity entries of `@basysteam/basys-fx` in `package-lock.json` (the root and `packages[""]`, currently `1.0.3`). Dependency entries at version `1.0.6` are left alone. The bump is minor: public members are only added.
 
-### 8. README описывает сценарии, а не алгоритм сервера
+### 8. The README describes scenarios, not the server algorithm
 
-Новый раздел «Границы запроса к регистру» в `README.md`: остаток на начало через `beforeMoment(moment(...))`, остаток на конец месяца через `upToMoment(d.endMonth())`, обороты через `fromMoment` и `upToMoment`, `excludeOwn`, `column`. Отдельно — «граница-дата — целая секунда» и правило: в форме второй аргумент `moment` можно опустить (это сделает этап 2.4), в общих модулях и на сервере — нельзя. Остальной текст README остаётся на английском.
+A new section, `Границы запроса к регистру`, in `README.md`: an opening balance through `beforeMoment(moment(...))`, a month-end balance through `upToMoment(d.endMonth())`, turnover through `fromMoment` and `upToMoment`, `excludeOwn`, and `column`. Separately, state that a date boundary is a whole second, and that in a form the second `moment` argument may be omitted (stage 2.4 does that), while in shared modules and on the server it must not. The rest of the README is left as it is.
 
 ## Risks / Trade-offs
 
-- [Пакет `1.1.0` уйдёт на сервер без этапа 2.2] → `System.Text.Json` отбросит неизвестное `boundaries`, и запрос молча вернёт строки без границ. Публикацию делает владелец после выпуска `BaSys.Back`. В этап входит только запись версии, ревизии и SHA-256 `dist/basys-fx.iife.js` в раздел 8 задачи.
-- [Строка даты без зоны зависит от движка] → для `'2026-10-22T12:37:59'` тест закрепляет локальные компоненты `new Date(2026, 9, 22, 12, 37, 59)`, как требует задача. Отдельного разбора часового пояса нет.
-- [Клиент и сервер оба отбрасывают миллисекунды] → библиотека не усекает дату сама, `toLocalISO()` уже отбрасывает доли секунды, сервер усекает повторно. Расширения дат не меняются, результат от клиента не зависит.
-- [Lock-файл уже отстаёт от `package.json`] → правка только двух полей идентичности пакета, без `npm update`.
+- [Package `1.1.0` reaches a server without stage 2.2] → `System.Text.Json` drops the unknown `boundaries`, and the query silently returns rows without boundaries. The owner publishes after `BaSys.Back` is released. This stage only records the version, the revision, and the SHA-256 of `dist/basys-fx.iife.js` in section 8 of the task.
+- [A date string without a zone depends on the engine] → for `'2026-10-22T12:37:59'`, the test fixes the local components of `new Date(2026, 9, 22, 12, 37, 59)`, as the task requires. There is no separate time-zone parse.
+- [Both the client and the server drop milliseconds] → the library does not truncate the date itself. `toLocalISO()` already drops fractional seconds, and the server truncates again. Date extensions do not change, and the result does not depend on the client.
+- [The lockfile already lags `package.json`] → edit only the two package-identity fields, without `npm update`.
 
 ## Migration Plan
 
-1. Добавить типы, методы и тесты, не меняя существующие вызовы построителя.
-2. Поднять версию пакета до `1.1.0`.
-3. Прогнать `npm test` и `npm run build` из корня BaSYS.FX.
-4. Записать в раздел 8 исходной задачи версию `1.1.0`, ревизию BaSYS.FX и SHA-256 `dist/basys-fx.iife.js`. Статус задачи и отметку этапа 2.3 в головном `tasks.md` ставит исполнитель по критериям готовности.
-5. Откат до публикации — не выпускать пакет. После публикации старые скрипты без границ не меняются: отсутствующее поле на сервере даёт пустой список. Откат потребителей — остаться на `1.0.6`.
+1. Add the types, methods, and tests without changing existing builder calls.
+2. Raise the package version to `1.1.0`.
+3. Run `npm test` and `npm run build` from the BaSYS.FX root.
+4. Record version `1.1.0`, the BaSYS.FX revision, and the SHA-256 of `dist/basys-fx.iife.js` in section 8 of the source task. The implementer sets the task status and the stage 2.3 mark in the parent `tasks.md` according to the readiness criteria.
+5. Before publication, rollback means not releasing the package. After publication, old scripts that do not use boundaries stay unchanged: a missing field becomes an empty list on the server. Consumers roll back by staying on `1.0.6`.
 
-Публикация в npm и правка `BaSys.Front` / `jsSource.resx` в этот шаг не входят.
+Publishing to npm and editing `BaSys.Front` / `jsSource.resx` are not part of this step.

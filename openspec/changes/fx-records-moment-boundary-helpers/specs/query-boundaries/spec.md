@@ -2,178 +2,178 @@
 
 ## Purpose
 
-Даёт скрипту четыре метода границы запроса и функцию `moment`: библиотека формирует поле `boundaries` модели, а условие по моменту или дате строит сервер.
+Gives a script four query-boundary methods and a `moment` function. The library fills the model's `boundaries` field, and the server builds the condition by moment or by date.
 
 ## ADDED Requirements
 
 ### Requirement: Query builder offers four boundary methods
 
-Построитель запроса SHALL предоставлять `beforeMoment`, `upToMoment`, `fromMoment` и `afterMoment` с сигнатурой `(значение, options?)`. Вызов SHALL добавлять одну границу и SHALL возвращать тот же построитель. Вид границы SHALL быть числом: 0, 1, 2 и 3 в этом порядке методов.
+The query builder SHALL provide `beforeMoment`, `upToMoment`, `fromMoment`, and `afterMoment` with the signature `(value, options?)`. A call SHALL add one boundary and SHALL return the same builder. The boundary kind SHALL be a number: 0, 1, 2, and 3, in that method order.
 
 #### Scenario: Each method adds one boundary and returns the builder
 
-- **WHEN** скрипт вызывает любой из четырёх методов с допустимой датой
-- **THEN** метод возвращает тот же построитель
-- **AND** в списке границ появляется одна запись с видом этого метода
+- **WHEN** a script calls any of the four methods with a valid date
+- **THEN** the method returns the same builder
+- **AND** the boundary list gains one entry with that method's kind
 
 ### Requirement: Boundary methods leave the rest of the query unchanged
 
-Методы границы SHALL NOT менять пользовательское условие, параметры и фильтры и SHALL NOT добавлять параметры `p_bnd_*` или текст SQL.
+Boundary methods SHALL NOT change the user condition, parameters, or filters, and SHALL NOT add `p_bnd_*` parameters or SQL text.
 
 #### Scenario: Where parameters and filters stay as they were
 
-- **GIVEN** у запроса уже заданы условие, параметр и фильтр
-- **WHEN** скрипт добавляет границу
-- **THEN** условие, параметры и фильтры остаются прежними
+- **GIVEN** the query already has a condition, a parameter, and a filter
+- **WHEN** a script adds a boundary
+- **THEN** the condition, parameters, and filters stay as they were
 
 ### Requirement: A date argument becomes a date boundary
 
-Допустимая дата SHALL давать границу, у которой дата — локальное время `YYYY-MM-DDTHH:mm:ss` без долей секунды и без зоны. Метаобъект и номер SHALL быть `null`. Доли секунды библиотека SHALL отбрасывать существующей локальной сериализацией и SHALL NOT усекать дату отдельно.
+A valid date SHALL produce a boundary whose date is local time `YYYY-MM-DDTHH:mm:ss`, without fractional seconds and without a time zone. The meta object and the number SHALL be `null`. The library SHALL drop fractional seconds through the existing local serialization and SHALL NOT truncate the date separately.
 
 #### Scenario: End of month drops milliseconds
 
-- **WHEN** скрипт вызывает `upToMoment` с концом ноября 2026, `23:59:59.999`
-- **THEN** дата границы равна `2026-11-30T23:59:59`
-- **AND** метаобъект и номер равны `null`
+- **WHEN** a script calls `upToMoment` with the end of November 2026, `23:59:59.999`
+- **THEN** the boundary date equals `2026-11-30T23:59:59`
+- **AND** the meta object and the number equal `null`
 
 ### Requirement: A date from another engine context is accepted
 
-Дата SHALL приниматься, когда `Object.prototype.toString` даёт `[object Date]` и время конечно, в том числе если объект создан в другом контексте движка и не имеет расширений дат библиотеки. Проверка SHALL NOT использовать `instanceof`.
+A date SHALL be accepted when `Object.prototype.toString` yields `[object Date]` and the time is finite, including when the object was created in another engine context and has none of the library's date extensions. The check SHALL NOT use `instanceof`.
 
 #### Scenario: Foreign date serializes without a type error
 
-- **GIVEN** дата `2026-11-30 23:59:59` из другого контекста, у которой нет локальной сериализации
-- **WHEN** скрипт передаёт её в `upToMoment`
-- **THEN** вызов завершается без ошибки типа
-- **AND** дата границы равна `2026-11-30T23:59:59`
+- **GIVEN** the date `2026-11-30 23:59:59` from another context, without local serialization
+- **WHEN** a script passes it to `upToMoment`
+- **THEN** the call finishes without a type error
+- **AND** the boundary date equals `2026-11-30T23:59:59`
 
 ### Requirement: An operation moment becomes an operation boundary
 
-Моментом SHALL быть объект, который не является датой, с допустимой датой и непустой строкой метаобъекта. Граница SHALL переносить метаобъект и номер и SHALL сериализовать дату так же, как границу-дату, через локальную копию.
+A moment SHALL be an object that is not a date, with a valid date and a non-empty meta-object string. The boundary SHALL carry the meta object and the number, and SHALL serialize the date the same way as a date boundary, through a local copy.
 
 #### Scenario: Moment fields are copied
 
-- **WHEN** скрипт вызывает `beforeMoment` с моментом `2026-10-22 12:37:59`, метаобъектом `operation.su_supplier_order` и номером 7
-- **THEN** дата границы равна `2026-10-22T12:37:59`, метаобъект и номер совпадают с моментом
+- **WHEN** a script calls `beforeMoment` with the moment `2026-10-22 12:37:59`, the meta object `operation.su_supplier_order`, and number 7
+- **THEN** the boundary date equals `2026-10-22T12:37:59`, and the meta object and the number match the moment
 
 #### Scenario: Hand-built moment with a foreign date
 
-- **GIVEN** момент собран вручную, а его дата создана в другом контексте
-- **WHEN** скрипт передаёт его в `beforeMoment`
-- **THEN** вызов завершается без ошибки типа
-- **AND** дата сериализуется локальной копией
+- **GIVEN** a moment built by hand, whose date was created in another context
+- **WHEN** a script passes it to `beforeMoment`
+- **THEN** the call finishes without a type error
+- **AND** the date is serialized from a local copy
 
 ### Requirement: An invalid boundary argument fails before the request
 
-Строка, число, `null`, `undefined`, объект без даты или метаобъекта и недопустимая дата SHALL давать ошибку `<метод>: argument must be a Date or a moment.` Запрос SHALL NOT отправляться. Список границ SHALL оставаться прежним.
+A string, a number, `null`, `undefined`, an object without a date or a meta object, and an invalid date SHALL produce the error `<method>: argument must be a Date or a moment.` The request SHALL NOT be sent. The boundary list SHALL stay as it was.
 
 #### Scenario: Rejected values do not change the list
 
-- **WHEN** скрипт передаёт `'2026-11-01'`, `null`, `{}` или `new Date(NaN)`
-- **THEN** метод завершается указанной ошибкой
-- **AND** список границ не меняется
+- **WHEN** a script passes `'2026-11-01'`, `null`, `{}`, or `new Date(NaN)`
+- **THEN** the method fails with that error
+- **AND** the boundary list does not change
 
 ### Requirement: excludeOwn is forwarded unchanged
 
-`options.excludeOwn` SHALL записываться как `true` или `false`. Если параметр не задан, поле SHALL быть `null`. Библиотека MUST NOT выбирать значение по умолчанию: его выбирает сервер.
+`options.excludeOwn` SHALL be stored as `true` or `false`. If the option is omitted, the field SHALL be `null`. The library MUST NOT choose a default: the server chooses it.
 
 #### Scenario: Explicit false is kept
 
-- **WHEN** скрипт передаёт `{ excludeOwn: false }`
-- **THEN** поле `excludeOwn` границы равно `false`
+- **WHEN** a script passes `{ excludeOwn: false }`
+- **THEN** the boundary field `excludeOwn` equals `false`
 
 #### Scenario: Omitted options become null
 
-- **WHEN** скрипт не передаёт `options`
-- **THEN** `excludeOwn` равен `null`
+- **WHEN** a script does not pass `options`
+- **THEN** `excludeOwn` equals `null`
 
 ### Requirement: column is allowed for date boundaries only
 
-`options.column` SHALL переноситься как есть только для границы-даты. Вместе с моментом метод SHALL завершаться ошибкой `<метод>: options.column is allowed for date boundaries only.` и SHALL NOT менять список границ. Существование и тип колонки библиотека MUST NOT проверять.
+`options.column` SHALL be copied as given only for a date boundary. Together with a moment, the method SHALL fail with `<method>: options.column is allowed for date boundaries only.` and SHALL NOT change the boundary list. The library MUST NOT check that the column exists or check its type.
 
 #### Scenario: Date boundary keeps the column name
 
-- **WHEN** скрипт вызывает границу-дату с `{ column: 'delivery_date' }`
-- **THEN** `column` границы равен `delivery_date`
+- **WHEN** a script calls a date boundary with `{ column: 'delivery_date' }`
+- **THEN** the boundary `column` equals `delivery_date`
 
 #### Scenario: Moment with column is rejected
 
-- **WHEN** скрипт передаёт момент и `{ column: 'delivery_date' }`
-- **THEN** метод завершается указанной ошибкой
-- **AND** список границ не меняется
+- **WHEN** a script passes a moment and `{ column: 'delivery_date' }`
+- **THEN** the method fails with that error
+- **AND** the boundary list does not change
 
 ### Requirement: Several boundaries stay in call order
 
-Каждый успешный вызов SHALL добавлять границу в конец списка. Все границы SHALL сохраняться и SHALL выполняться сервером одновременно.
+Each successful call SHALL append a boundary to the list. Every boundary SHALL be kept, and the server SHALL apply them together.
 
 #### Scenario: Lower and upper bounds
 
-- **WHEN** скрипт вызывает `fromMoment` с датой A, затем `upToMoment` с датой B
-- **THEN** в списке две границы в этом порядке, с видами 2 и 1
+- **WHEN** a script calls `fromMoment` with date A, then `upToMoment` with date B
+- **THEN** the list contains two boundaries in that order, with kinds 2 and 1
 
 ### Requirement: moment builds a detached operation moment
 
-`moment(header, metaObject)` SHALL возвращать новый объект `{ date, metaObject, number }`. `date` SHALL быть локальной копией. Последующее изменение шапки, включая смену времени исходной даты, MUST NOT менять момент. Ссылок на шапку и на её объект даты момент SHALL NOT хранить.
+`moment(header, metaObject)` SHALL return a new object `{ date, metaObject, number }`. `date` SHALL be a local copy. A later change to the header, including a change to the time of the original date, MUST NOT change the moment. The moment SHALL NOT store a reference to the header or to its date object.
 
 #### Scenario: Header date and number are copied
 
-- **WHEN** скрипт вызывает `moment({ date: new Date(2026, 9, 22, 12, 37, 59), number: 7 }, 'operation.su_supplier_order')`
-- **THEN** момент содержит эту дату, метаобъект `operation.su_supplier_order` и номер 7
-- **AND** объект даты момента не совпадает с датой шапки
+- **WHEN** a script calls `moment({ date: new Date(2026, 9, 22, 12, 37, 59), number: 7 }, 'operation.su_supplier_order')`
+- **THEN** the moment contains that date, the meta object `operation.su_supplier_order`, and number 7
+- **AND** the moment's date object is not the header's date
 
 #### Scenario: Header string date is local
 
-- **WHEN** `header.date` равен `'2026-10-22T12:37:59'`
-- **THEN** момент содержит ту же локальную дату, что и `new Date(2026, 9, 22, 12, 37, 59)`
+- **WHEN** `header.date` equals `'2026-10-22T12:37:59'`
+- **THEN** the moment contains the same local date as `new Date(2026, 9, 22, 12, 37, 59)`
 
 #### Scenario: Later header edits do not change the moment
 
-- **WHEN** после вызова меняются номер шапки, время исходной даты или сам `header.date`
-- **THEN** время и номер момента остаются прежними
+- **WHEN** the header number, the time of the original date, or `header.date` itself changes after the call
+- **THEN** the moment's time and number stay as they were
 
 #### Scenario: Foreign header date becomes a local date
 
-- **GIVEN** `header.date` создана в другом контексте и не имеет расширений дат библиотеки
-- **WHEN** скрипт вызывает `moment`
-- **THEN** дата момента имеет то же время и является локальной датой с расширениями библиотеки
+- **GIVEN** `header.date` was created in another context and has none of the library's date extensions
+- **WHEN** a script calls `moment`
+- **THEN** the moment's date has the same time and is a local date with the library extensions
 
 ### Requirement: moment requires a meta object and a valid header
 
-Пустой или нестроковый `metaObject` SHALL давать `Error('moment: operation meta object is not specified.')`. Шапка, которая не является объектом, SHALL давать `Error('moment: header is required.')`. Отсутствующая или недопустимая `header.date` SHALL давать `Error('moment: header.date is not a valid date.')`. Дата SHALL быть объектом `Date` или строкой, которую разбирает `new Date`. Библиотека MUST NOT подставлять метаобъект формы.
+An empty or non-string `metaObject` SHALL produce `Error('moment: operation meta object is not specified.')`. A header that is not an object SHALL produce `Error('moment: header is required.')`. A missing or invalid `header.date` SHALL produce `Error('moment: header.date is not a valid date.')`. The date SHALL be a `Date` object or a string that `new Date` can parse. The library MUST NOT substitute the form's meta object.
 
 #### Scenario: Missing meta object
 
-- **WHEN** второй аргумент отсутствует, не является строкой или равен `''`
-- **THEN** вызов завершается ошибкой о неуказанном метаобъекте
+- **WHEN** the second argument is missing, is not a string, or equals `''`
+- **THEN** the call fails with the error that the meta object is not specified
 
 #### Scenario: Missing or invalid header
 
-- **WHEN** шапка равна `null`, у неё нет даты или дата равна `'abc'`
-- **THEN** вызов завершается соответствующей ошибкой
+- **WHEN** the header equals `null`, has no date, or the date equals `'abc'`
+- **THEN** the call fails with the corresponding error
 
 ### Requirement: An empty operation number is null
 
-Номер SHALL браться из `header.number`. Значения `undefined`, `null`, `''` и `0` SHALL сохраняться как `null` и SHALL означать новую операцию для сервера.
+The number SHALL be taken from `header.number`. The values `undefined`, `null`, `''`, and `0` SHALL be stored as `null` and SHALL mean a new operation for the server.
 
 #### Scenario: Empty numbers collapse to null
 
-- **WHEN** номер шапки равен `undefined`, `null`, `''` или `0`
-- **THEN** номер момента равен `null`
+- **WHEN** the header number equals `undefined`, `null`, `''`, or `0`
+- **THEN** the moment number equals `null`
 
 ### Requirement: The query body sends every boundary field
 
-JSON модели SHALL содержать у каждой границы `kind`, `date`, `metaObject`, `number`, `excludeOwn` и `column`. `kind` SHALL быть числом. Отсутствующее значение SHALL быть `null`, а не пропущенным полем.
+The model JSON SHALL include `kind`, `date`, `metaObject`, `number`, `excludeOwn`, and `column` on every boundary. `kind` SHALL be a number. A missing value SHALL be `null`, not an omitted field.
 
 #### Scenario: Date boundary matches the server contract
 
-- **WHEN** модель с `upToMoment` на `2026-11-30T23:59:59` сериализуется в JSON
-- **THEN** элемент `boundaries` равен `{"kind":1,"date":"2026-11-30T23:59:59","metaObject":null,"number":null,"excludeOwn":null,"column":null}`
+- **WHEN** a model with `upToMoment` at `2026-11-30T23:59:59` is serialized to JSON
+- **THEN** the `boundaries` element equals `{"kind":1,"date":"2026-11-30T23:59:59","metaObject":null,"number":null,"excludeOwn":null,"column":null}`
 
 ### Requirement: A plain object restores boundary entries
 
-Конструктор модели SHALL копировать `boundaries` в новые объекты границ, заменяя `undefined` на `null`. Отсутствующее поле SHALL давать пустой список.
+The model constructor SHALL copy `boundaries` into new boundary objects, replacing `undefined` with `null`. A missing field SHALL yield an empty list.
 
 #### Scenario: Round trip restores the same fields
 
-- **WHEN** модель сериализуют в JSON и создают из этого объекта новую модель
-- **THEN** границы восстановлены с теми же шестью полями
+- **WHEN** a model is serialized to JSON and a new model is created from that object
+- **THEN** the boundaries are restored with the same six fields
