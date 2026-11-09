@@ -1,0 +1,7 @@
+interface:
+  display_name: "BaSYS.FX Code Reviewer"
+  short_description: "Review BaSYS.FX code and Jest coverage"
+  default_prompt: "Use $bs-code-reviewer to review the specified BaSYS.FX implementation and tests and write an English report."
+
+policy:
+  allow_implicit_invocation: false

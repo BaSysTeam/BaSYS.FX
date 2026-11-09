@@ -103,6 +103,35 @@ refresh the generated integrations for both tools. The
 `.agents/skills/.openspec-target` marker identifies the Codex skill tree; keep it
 under version control along with the generated skills.
 
+### Project review and release-note skills
+
+The following project skills are invoked explicitly in Codex or Cursor. Their
+shared instructions live in `.agents/skills/`; the entries in `.cursor/skills/`
+refer to those instructions.
+
+| Task | Codex skill | Cursor skill |
+| --- | --- | --- |
+| Review library code, public API, and Jest coverage | `$bs-code-reviewer` | `/bs-code-reviewer` |
+| Review an OpenSpec proposal, specs, design, or tasks | `$bs-spec-reviewer` | `/bs-spec-reviewer` |
+| Add one item to an existing release-notes file | `$bs-release-note-item` | `/bs-release-note-item` |
+
+Review skills leave code and planning artifacts unchanged and write English
+reports to `openspec/changes/<change>/reviews/` for a selected active change,
+or to `review/` otherwise. Release notes live in `docs/relises/`; the release-note
+skill defaults to the highest version file in that directory and describes
+implemented public library behavior in English. Reports and release-note items
+use English regardless of the request language or the language of the source
+OpenSpec artifacts. The release-note skill does not bump the version or publish npm.
+
+```text
+$bs-code-reviewer src/query/selectQueryBuilder.ts
+$bs-spec-reviewer add-mathematical-rounding
+$bs-release-note-item 1.1.0.md
+```
+
+These project skills are maintained separately from the generated OpenSpec
+workflows. Restart Codex if the new skills do not appear in its skill picker.
+
 ### Building
 
 To build the project:

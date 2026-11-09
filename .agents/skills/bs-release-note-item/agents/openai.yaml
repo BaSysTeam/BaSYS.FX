@@ -1,0 +1,7 @@
+interface:
+  display_name: "BaSYS.FX Release Note Item"
+  short_description: "Add one BaSYS.FX release-note item"
+  default_prompt: "Use $bs-release-note-item to add one English item for the implemented BaSYS.FX change to the current release notes."
+
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,7 @@
+interface:
+  display_name: "BaSYS.FX Spec Reviewer"
+  short_description: "Review BaSYS.FX OpenSpec change plans"
+  default_prompt: "Use $bs-spec-reviewer to review the specified BaSYS.FX OpenSpec change or task section and write an English report."
+
+policy:
+  allow_implicit_invocation: false
