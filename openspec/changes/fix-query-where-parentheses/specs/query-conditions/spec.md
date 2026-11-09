@@ -4,6 +4,10 @@
 
 Defines how scripts replace and combine SELECT WHERE fragments while preserving operand grouping and forwarding the composed condition to the query provider.
 
+## Scope
+
+The composition guarantees below apply to non-empty SQL fragment strings. Empty incoming fragments (`''`), `null`, and `undefined` are outside this composition contract; no skip policy or usable SQL output is promised for them. The explicit `where('')` reset described below remains supported. This change does not add input validation.
+
 ## ADDED Requirements
 
 ### Requirement: Concatenation groups both operands
@@ -48,7 +52,6 @@ Each `whereAnd` or `whereOr` call SHALL treat the entire result of previous call
 
 - **WHEN** a script calls `where('a = 1').whereAnd('b = 2').whereAnd('c = 3')`
 - **THEN** the WHERE expression equals `((a = 1) and (b = 2)) and (c = 3)`
-- **AND** its logical meaning remains the conjunction of all three conditions
 
 ### Requirement: The first condition is stored verbatim
 

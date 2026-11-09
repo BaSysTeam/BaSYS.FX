@@ -10,6 +10,8 @@ In `src/query/selectQueryBuilder.ts`, `whereAnd` and `whereOr` independently che
 
 The external source is `D:/_WORK/BaSysProject/REPO/BaSysApp/BaSYS.DevDocs/openspec/changes/archive/2026-11-04-fix-query-where-parentheses-and-sql-errors/tasks.md`, sections 2, 5, and 6. It explicitly leaves client composition for a separate repository change. This plan does not assert that a client-only change proves or replaces server RLS enforcement.
 
+BaSYS.FX also executes inside the backend: `BaSys.Back/src/BaSys.EvalEngine/jsSource.resx` contains two manually embedded library resources, `BaSysFX` and `BaSysFXmodule`, both still using ungrouped concatenation at review time. Frontend SPAs in `BaSys.Front` depend on `@basysteam/basys-fx` through npm (`^1.0.6` at review time), and their built bundles are delivered through `BaSys.Host/wwwroot`. Updating this library alone does not update any of those runtime copies. Server SQL wrapping operates on the string already produced by the script and cannot repair grouping inside it.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -46,7 +48,9 @@ Preserving SQL precedence across separate calls would retain the reported defect
 
 ### 3. Preserve existing input policy and transport
 
-Use the existing truthiness check for accumulated state. Do not trim, skip, reject, or parse incoming fragments. An empty incoming fragment remains accepted and can still yield invalid SQL when appended to a non-empty condition; this change adds grouping, not input validation. Existing whitespace and parentheses stay inside the added wrappers.
+Use the existing truthiness check for accumulated state. Do not trim, skip, reject, or parse incoming fragments. The composition contract covers non-empty SQL fragment strings; empty incoming fragments (`''`), `null`, and `undefined` are outside it, while `where('')` remains a supported reset. Existing whitespace and parentheses stay inside the added wrappers.
+
+This preserves the current lack of validation rather than promising useful output for invalid inputs: appending `''` to `a` will form `(a) and ()`, and JavaScript callers passing `undefined` can form `(a) and (undefined)`. These are implementation consequences, not supported SQL or additional acceptance scenarios. The archived backend change deliberately skips empty or `null` fragments in its C# condition builder. BaSYS.FX does not adopt that policy in this fix; aligning validation or skip behavior would be a separate contract change. The README must make this distinction visible and tell callers to supply non-empty fragments.
 
 Do not change `SelectQueryModel`, its constructor, `query()`, or `IQueriesProvider`. The provider already receives `whereExpression` as a string. Formatting at serialization or execution time instead would delay the correction and leave the public builder model with an ambiguous condition.
 
@@ -65,9 +69,24 @@ Run the focused suite, the complete Jest suite, and the existing Rollup build du
 - [Already grouped inputs gain redundant parentheses] -> Preserve them deliberately; avoiding them safely would require SQL parsing beyond this change.
 - [Long chains create deeper nesting] -> Accept linear growth in expression length and depth; no new parsing or flattening is introduced.
 - [Client grouping could be mistaken for a security boundary] -> Keep backend RLS and backend verification outside this plan and describe the fix as client condition composition.
+- [Runtime copies use different grouping during deployment] -> Prepare frontend npm bundles and both backend resource copies from the same release revision and deploy them together; verify the same mixed-chain expression in every runtime before reopening script execution.
 
 ## Migration Plan
 
-Implement the builder change, regression tests, and README guidance together. Validate the package with its existing commands. Version selection and publishing remain a separate release action.
+### Library work and release identity
 
-When upgrading consumers, inspect mixed `whereAnd` / `whereOr` chains that relied on implicit SQL precedence. Express the desired compound operand explicitly, such as `where('a').whereOr('b AND c')`. Single fragments remain untouched. Reverting the implementation would restore ambiguous composition, so rollback should also account for any consumer edits made for the new contract.
+Implement the builder change, regression tests, and README guidance together, and validate the package with its existing commands. This change's release target is `2.0.0`: the mixed-chain behavior is breaking, so a `1.x` minor or patch is not the delivery vehicle. The boundaries release `1.1.0` remains pinned to `edabb452961d95deecc1660f55c1f4f10fb2ce9c` in the external stage 2.3 record; do not re-pin it or publish the fixed working tree as `1.1.0`. Existing boundaries-release prerequisites remain in force.
+
+Version bump and npm publication are separate release-owner actions. Before publishing, the owner must use `bs-release-note-item` to add an entry to `docs/relises/2.0.0.md` describing the breaking grouping change, examples of the previous and new results, and migration guidance. The owner must update package version metadata to `2.0.0` and record the release revision and bundle checksum so npm and embedded copies can be traced to the same build. Neither publishing nor changing package versions is part of this implementation's tasks.
+
+### External runtime delivery order
+
+The following work belongs to release, frontend, and backend owners in `BaSysApp`; it is a delivery dependency, not additional implementation work in this repository:
+
+1. Review affected stored scripts and prepare any required grouping edits before upgrading a runtime. Prepare and publish the validated `2.0.0` package from the recorded release revision after its release notes are ready. Publishing alone does not activate the new behavior in deployed runtimes.
+2. Frontend owners must explicitly update the npm dependency range from `^1.0.6` to the new major (for example, `^2.0.0`), lock the initial rollout to `2.0.0`, rebuild the consuming SPAs, and prepare their `BaSys.Host/wwwroot` bundles. Backend owners must refresh **both** `BaSysFX` and `BaSysFXmodule` resources in `BaSys.Back/src/BaSys.EvalEngine/jsSource.resx` from the matching `2.0.0` build; updating server SQL composition alone is insufficient.
+3. Deploy the prepared backend resources and frontend bundles in one coordinated rollout. If the deployment cannot replace both together, keep user-script execution paused until both are updated; a backend-first or frontend-first interval would otherwise give the same script different grouping. Verify `where('a').whereOr('b').whereAnd('c')` produces `((a) or (b)) and (c)` in the browser and in both backend script contexts before resuming execution. Record the deployed package version, revision, and resource/bundle provenance in the external delivery record.
+
+The library fix is effective separately in each runtime only after that runtime's carrier has been updated. These external actions remain pending even when this repository's implementation tasks are complete.
+
+When upgrading consumers, inspect mixed `whereAnd` / `whereOr` chains that relied on implicit SQL precedence. Express the desired compound operand explicitly, such as `where('a').whereOr('b AND c')`. Single fragments remain untouched. Roll back frontend bundles and both backend resources together to their recorded previous builds, accounting for any script edits made for the new contract; reverting only one carrier recreates runtime divergence.
