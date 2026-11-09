@@ -34,6 +34,26 @@ The function SHALL choose the nearest multiple of `10^(-digits)` in decimal arit
 - **WHEN** `round(1.25, 1)`, `round(-1.25, 1)`, `round(1250, -2)`, and `round(-1250, -2)` are called
 - **THEN** the results equal `1.3`, `-1.3`, `1300`, and `-1300` respectively
 
+#### Scenario: Ties between zero and one rounding unit
+
+- **WHEN** `round(5, -1)` and `round(-5, -1)` are called
+- **THEN** the results equal `10` and `-10` respectively
+
+#### Scenario: Values below and above half a rounding unit
+
+- **WHEN** `round(4.9, -1)`, `round(-4.9, -1)`, `round(5.1, -1)`, and `round(-5.1, -1)` are called
+- **THEN** the first two results are positive zero, and the remaining results equal `10` and `-10` respectively
+
+#### Scenario: Subnormal ties between zero and one rounding unit
+
+- **WHEN** `round(5e-323, 322)` and `round(-5e-323, 322)` are called
+- **THEN** the results equal `1e-322` and `-1e-322` respectively
+
+#### Scenario: Subnormal values below and above half a rounding unit
+
+- **WHEN** `round(4e-323, 322)`, `round(-4e-323, 322)`, `round(6e-323, 322)`, and `round(-6e-323, 322)` are called
+- **THEN** the first two results are positive zero, and the remaining results equal `1e-322` and `-1e-322` respectively
+
 ### Requirement: Decimal interpretation of Number
 
 The function SHALL round the decimal value of the canonical `String(value)` of a finite input, including exponential notation. The resulting decimal value SHALL be converted to the nearest representable `number` by ECMAScript rules. An input that already matches the precision SHALL be preserved, except for zero normalization.
