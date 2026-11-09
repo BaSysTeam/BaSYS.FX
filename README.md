@@ -7,11 +7,11 @@ BaSYS.FX is an extended set of functions for working with dates, tables, and oth
 npm install @basysteam/basys-fx
 ```
 
-## Границы запроса к регистру
+## Register query boundaries
 
-Библиотека записывает поле `boundaries` модели запроса. Условие по дате или по моменту операции строит сервер.
+The library writes the query model's `boundaries` field. The server builds the condition by date or by operation moment.
 
-Остаток на начало операции:
+Opening balance at the start of the operation:
 
 ```js
 const opening = await from('records.su_request_saldo')
@@ -22,7 +22,7 @@ const opening = await from('records.su_request_saldo')
     .query();
 ```
 
-Остаток на конец месяца:
+Balance at the end of the month:
 
 ```js
 const closing = await from('records.su_request_saldo')
@@ -32,7 +32,7 @@ const closing = await from('records.su_request_saldo')
     .query();
 ```
 
-Обороты за период:
+Turnover for a period:
 
 ```js
 const turnover = await from('records.su_request_saldo')
@@ -43,13 +43,13 @@ const turnover = await from('records.su_request_saldo')
     .query();
 ```
 
-Свои движения исключаются явно: `upToMoment(moment($h, 'operation.su_supplier_order'), { excludeOwn: true })`. Если `excludeOwn` не передан, библиотека отправляет `null`, а значение по умолчанию выбирает сервер.
+Own movements are excluded explicitly: `upToMoment(moment($h, 'operation.su_supplier_order'), { excludeOwn: true })`. If `excludeOwn` is omitted, the library sends `null`, and the server chooses the default.
 
-Граница по другой колонке даты: `upToMoment(d, { column: 'delivery_date' })`. Имя колонки передаётся как есть. `column` допустим только вместе с датой, не с моментом операции.
+A boundary on another date column: `upToMoment(d, { column: 'delivery_date' })`. The column name is passed as given. `column` is valid only together with a date, not with an operation moment.
 
-Граница-дата — целая секунда. Доли секунды в запрос не попадают: `endMonth()` возвращает `23:59:59.999`, а в `boundaries` уходит `23:59:59`. Сервер усекает дату до секунды сам, поэтому результат не зависит от миллисекунд на клиенте.
+A date boundary is a whole second. Fractions of a second do not enter the query: `endMonth()` returns `23:59:59.999`, while `boundaries` receives `23:59:59`. The server truncates the date to a second itself, so the result does not depend on milliseconds on the client.
 
-В форме второй аргумент `moment` можно опустить: `moment($h)` берёт метаобъект этой формы. Это добавляет фронтенд, не библиотека. В общих модулях и на сервере второй аргумент обязателен: вызов без него завершается ошибкой `moment: operation meta object is not specified.`
+In a form, the second `moment` argument can be omitted: `moment($h)` takes the meta object of that form. The frontend adds this, not the library. In shared modules and on the server the second argument is required: a call without it fails with `moment: operation meta object is not specified.`
 
 ## Development
 
