@@ -7,6 +7,36 @@ BaSYS.FX is an extended set of functions for working with dates, tables, and oth
 npm install @basysteam/basys-fx
 ```
 
+## Rounding
+
+`round` accepts a primitive number and an integer precision from `-308` to `324`. The default precision is `0`. Ties round away from zero, using the canonical decimal digits of the value. The result is a number, so trailing zeros are not kept.
+
+```js
+round(12.6);             // 13
+round(1.005, 2);         // 1.01
+round(-1.5);             // -2
+round(1.2, 2);           // 1.2
+round(1234.567, -2);     // 1200
+```
+
+A string, empty value, object, boxed number, or symbol throws `TypeError`. A fractional, non-finite, or out-of-range precision throws `RangeError`. `NaN` and infinities are preserved for an allowed precision, and every zero result is positive zero.
+
+`formatNumber` and numeric `format` use the same decimal rule and write the rounded digits directly, padded to the display precision. Display precision is `0` through `100`. `round` accepts `-308` through `324` and does not pad trailing zeros. Arithmetic after `round` is ordinary IEEE 754 arithmetic. Details are in [docs/round.md](docs/round.md).
+
+A rounded zero has no minus sign. Finite values are plain decimal text, including exponential inputs such as `1e21`. `NaN`, `Infinity`, and `-Infinity` are the tokens `NaN`, `Infinity`, and `-Infinity`.
+
+Consumers that stored formatted text should review the following changes. Masks, separators, grouping, and the default of two decimal places still work. The previous `toFixed` boundary text is not the current result.
+
+| Call | Current result | Previous result |
+| --- | --- | --- |
+| `formatNumber(1.005)` | `"1.01"` | `"1.00"` |
+| `formatNumber(0.1, { decimals: 20, groupSeparator: '' })` | `"0.10000000000000000000"` | `"0.10000000000000000555"` |
+| `formatNumber(-0.004)` | `"0.00"` | `"-0.00"` |
+| `formatNumber(1e21, { groupSeparator: '' })` | `"1000000000000000000000.00"` | `"1e+21"` |
+| `formatNumber(Infinity)` | `"Infinity"` | `"In fin ity"` |
+
+See [docs/format.md](docs/format.md).
+
 ## Register query boundaries
 
 The library writes the query model's `boundaries` field. The server builds the condition by date or by operation moment.
@@ -50,6 +80,86 @@ A boundary on another date column: `upToMoment(d, { column: 'delivery_date' })`.
 A date boundary is a whole second. Fractions of a second do not enter the query: `endMonth()` returns `23:59:59.999`, while `boundaries` receives `23:59:59`. The server truncates the date to a second itself, so the result does not depend on milliseconds on the client.
 
 In a form, the second `moment` argument can be omitted: `moment($h)` takes the meta object of that form. The frontend adds this, not the library. In shared modules and on the server the second argument is required: a call without it fails with `moment: operation meta object is not specified.`
+
+## Compose WHERE conditions
+
+`where` replaces the accumulated condition with the supplied text. `whereAnd` and `whereOr` start a condition when none exists, and otherwise combine the whole accumulated condition with the new fragment. The operators are lowercase `and` and `or`. Each call returns the same builder and changes only the WHERE expression.
+
+The first fragment is stored verbatim, with no added operator or parentheses:
+
+```js
+from('records.su_request_saldo').whereOr('a = 1 OR b = 2');
+// a = 1 OR b = 2
+```
+
+`where('')` clears the condition. The next `whereAnd` or `whereOr` starts again:
+
+```js
+from('records.su_request_saldo').where('a = 1').where('').whereOr('b = 2');
+// b = 2
+```
+
+`where` discards the earlier chain. A later concatenation uses the replacement as its left operand:
+
+```js
+from('records.su_request_saldo')
+    .where('a = 1')
+    .whereOr('b = 2')
+    .where('c = 3 OR d = 4')
+    .whereAnd('e = 5');
+// (c = 3 OR d = 4) and (e = 5)
+```
+
+When a condition already exists, both operands are grouped. Existing parentheses and whitespace stay inside those groups:
+
+```js
+from('records.su_request_saldo')
+    .where('rd_code = 65 OR rd_code = 66')
+    .whereAnd('project = @project');
+// (rd_code = 65 OR rd_code = 66) and (project = @project)
+
+from('records.su_request_saldo')
+    .where('project = @project')
+    .whereAnd('rd_code = 65 OR rd_code = 66');
+// (project = @project) and (rd_code = 65 OR rd_code = 66)
+
+from('records.su_request_saldo')
+    .where('a = 1 AND b = 2')
+    .whereOr('c = 3 AND d = 4');
+// (a = 1 AND b = 2) or (c = 3 AND d = 4)
+
+from('records.su_request_saldo')
+    .where(' (a = 1 OR b = 2) ')
+    .whereAnd(' c = 3 ');
+// ( (a = 1 OR b = 2) ) and ( c = 3 )
+```
+
+Successive calls use the whole previous result as the left operand, in call order:
+
+```js
+from('records.su_request_saldo').where('a = 1').whereOr('b = 2').whereAnd('c = 3');
+// ((a = 1) or (b = 2)) and (c = 3)
+
+from('records.su_request_saldo').where('a = 1').whereAnd('b = 2').whereOr('c = 3');
+// ((a = 1) and (b = 2)) or (c = 3)
+
+from('records.su_request_saldo').where('a = 1').whereAnd('b = 2').whereAnd('c = 3');
+// ((a = 1) and (b = 2)) and (c = 3)
+
+from('records.su_request_saldo').where('a = 1').whereOr('b = 2').whereOr('c = 3');
+// ((a = 1) or (b = 2)) or (c = 3)
+```
+
+This is a breaking change. Before the fix, `where('a').whereOr('b').whereAnd('c')` produced `a or b and c`. SQL precedence reads `a OR b AND c` as `a OR (b AND c)`. The same calls now produce `((a) or (b)) and (c)`, which is `(a OR b) AND c`. To keep the former meaning, put the compound operand in one fragment:
+
+```js
+from('records.su_request_saldo').where('a').whereOr('b AND c');
+// (a) or (b AND c)
+```
+
+Composition applies to non-empty SQL fragment strings. `''`, `null`, and `undefined` are outside that contract. The supported exception is `where('')`, which resets the condition. This library does not skip empty or `null` fragments. That skip policy belongs to the backend condition builder and is not applied here.
+
+The grouping ships in `2.0.0`, a major release after the pinned boundaries release `1.1.0` (`edabb452961d95deecc1660f55c1f4f10fb2ce9c`). It does not ship in a `1.x` release, and the fixed build is not a publishable `1.1.0` artifact. npm consumers on `^1.0.6` must upgrade explicitly to the new major. Frontend bundles and both embedded backend copies, `BaSysFX` and `BaSysFXmodule`, must be updated from the same `2.0.0` revision and deployed together. Before publishing, the release owner adds the breaking change, the old and new grouping, and this migration guidance to `docs/relises/2.0.0.md`.
 
 ## Development
 

@@ -44,7 +44,7 @@ export class SelectQueryBuilder {
 
     whereAnd(whereExpression: string): SelectQueryBuilder {
         if (this.model.whereExpression) {
-            this.model.whereExpression += ` and ${whereExpression}`;
+            this.model.whereExpression = `(${this.model.whereExpression}) and (${whereExpression})`;
         } else {
             this.model.whereExpression = whereExpression;
         }
@@ -54,7 +54,7 @@ export class SelectQueryBuilder {
 
     whereOr(whereExpression: string): SelectQueryBuilder {
         if (this.model.whereExpression) {
-            this.model.whereExpression += ` or ${whereExpression}`;
+            this.model.whereExpression = `(${this.model.whereExpression}) or (${whereExpression})`;
         } else {
             this.model.whereExpression = whereExpression;
         }

@@ -38,7 +38,7 @@ function formatNumber(value: number, format?: string | NumberFormatOptions): str
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `decimals` | `number` | `2` | Number of digits after the decimal point. |
+| `decimals` | `number` | `2` | Display digits after the decimal point, in `0..100`. `NaN` means `0`. A finite fraction truncates toward zero. `null` or `undefined` keeps `2`. |
 | `decimalSeparator` | `string` | `"."` | Character used as the decimal separator. |
 | `groupSeparator` | `string` | `" "` (space) | Character used as the thousands group separator. Pass `""` to disable grouping. |
 
@@ -54,6 +54,30 @@ Number format strings use the following symbols:
 | `,` | Enables grouping (thousands separator). |
 
 The actual separator characters used in output are the library defaults (`"."` for decimal, `" "` for groups).
+
+### Decimal rounding
+
+Finite numbers use the same canonical-decimal rule as [`round`](round.md): nearest value, with ties away from zero. `formatNumber` writes those digits directly and then applies padding, grouping, separators, and the sign. It does not convert the rounded value back to a binary `number`, and it does not round it again.
+
+The text has exactly the selected number of fractional digits, with zeros added when the rounded decimal is shorter. `formatNumber(1.2)` is `"1.20"`. A result of zero has no minus sign, including `-0` and a negative value that rounds to zero.
+
+Display precision is `0` through `100`. `round` accepts integers from `-308` to `324` and returns a number, so it does not keep trailing zeros. Those are different precisions.
+
+A finite value is always plain decimal text. `formatNumber(1e21, { groupSeparator: '' })` is `"1000000000000000000000.00"`. For a precision inside `0..100`, `NaN`, `Infinity`, and `-Infinity` are the tokens `"NaN"`, `"Infinity"`, and `"-Infinity"`. Grouping, separators, and padding do not change those tokens. A precision outside `0..100` throws `RangeError` before that token is chosen.
+
+### Changes from earlier releases
+
+Earlier releases rounded with `toFixed`. Current text follows the shared decimal rule, so saved display values at the old boundaries need review. Masks, separators, grouping, and the default of two places are still supported. The old boundary text is not preserved.
+
+| Call | Current result | Previous result |
+|------|----------------|-----------------|
+| `formatNumber(1.005)` | `"1.01"` | `"1.00"` |
+| `formatNumber(-1.005)` | `"-1.01"` | `"-1.00"` |
+| `formatNumber(0.1, { decimals: 20, groupSeparator: '' })` | `"0.10000000000000000000"` | `"0.10000000000000000555"` |
+| `formatNumber(-0.004)` | `"0.00"` | `"-0.00"` |
+| `formatNumber(1e21, { groupSeparator: '' })` | `"1000000000000000000000.00"` | `"1e+21"` |
+| `formatNumber(Infinity)` | `"Infinity"` | `"In fin ity"` |
+| `formatNumber(-Infinity)` | `"-Infinity"` | `"-In fin ity"` |
 
 ### Examples
 
@@ -79,6 +103,17 @@ formatNumber(1234.5, '#,##0.000');                 // "1 234.500"
 formatNumber(1234.5, '0.0');                       // "1234.5"  (no grouping)
 formatNumber(1234.5, '#,##0');                     // "1 235"   (no decimals)
 formatNumber(1234.5, '0');                         // "1235"    (no grouping, no decimals)
+
+// Shared decimal rule
+formatNumber(1.005);                               // "1.01"
+formatNumber(-1.005);                              // "-1.01"
+formatNumber(-0.004);                              // "0.00"
+formatNumber(9.995);                               // "10.00"
+formatNumber(0.1, { decimals: 20, groupSeparator: '' }); // "0.10000000000000000000"
+formatNumber(1e21, { groupSeparator: '' });        // "1000000000000000000000.00"
+formatNumber(NaN);                                 // "NaN"
+formatNumber(Infinity);                            // "Infinity"
+formatNumber(-Infinity);                           // "-Infinity"
 ```
 
 ---

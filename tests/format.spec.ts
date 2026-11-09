@@ -3,6 +3,7 @@ import {
     formatDate,
     formatBoolean,
     format,
+    round,
 } from '../src/common';
 
 // ── formatNumber ────────────────────────────────────────────────────────
@@ -91,6 +92,117 @@ describe('formatNumber', () => {
 
         it('handles negative numbers with format string', () => {
             expect(formatNumber(-9876.54, '#,##0.00')).toBe('-9 876.54');
+        });
+    });
+
+    describe('shared decimal rounding', () => {
+        it('agrees with round on a two-place half', () => {
+            expect(round(1.005, 2)).toBe(1.01);
+            expect(formatNumber(1.005)).toBe('1.01');
+            expect(format(1.005)).toBe('1.01');
+        });
+
+        it('rounds decimal halves of both signs', () => {
+            expect(formatNumber(-1.005)).toBe('-1.01');
+            expect(formatNumber(2.675)).toBe('2.68');
+            expect(formatNumber(-2.675)).toBe('-2.68');
+            expect(format(-1.005, '0.00')).toBe('-1.01');
+        });
+
+        it('rounds ties between zero and one display unit', () => {
+            expect(formatNumber(0.005)).toBe('0.01');
+            expect(formatNumber(-0.005)).toBe('-0.01');
+            expect(formatNumber(0.5, '0')).toBe('1');
+            expect(formatNumber(-0.5, '0')).toBe('-1');
+        });
+
+        it('keeps fractional width when a carry reaches 10', () => {
+            expect(formatNumber(9.995)).toBe('10.00');
+            expect(formatNumber(1.2)).toBe('1.20');
+        });
+
+        it('formats a rounded zero without a minus sign', () => {
+            expect(formatNumber(-0)).toBe('0.00');
+            expect(formatNumber(-0.004)).toBe('0.00');
+            expect(format(-0.004)).toBe('0.00');
+            expect(formatNumber(-0.49, '0')).toBe('0');
+        });
+
+        it('pads canonical digits at precision 20', () => {
+            expect(round(0.1, 20)).toBe(0.1);
+            expect(formatNumber(0.1, { decimals: 20, groupSeparator: '' }))
+                .toBe('0.10000000000000000000');
+            expect(format(0.1, { decimals: 20, groupSeparator: '' }))
+                .toBe('0.10000000000000000000');
+        });
+    });
+});
+
+describe('formatNumber edges', () => {
+    it('uses a mask for precision and grouping', () => {
+        expect(formatNumber(1000.005, '#,##0.00')).toBe('1 000.01');
+        expect(format(1000.005, '#,##0.00')).toBe('1 000.01');
+        expect(formatNumber(1.005, '0.00')).toBe('1.01');
+    });
+
+    it('uses custom separators and can disable grouping', () => {
+        expect(formatNumber(1234.565, { decimalSeparator: ',', groupSeparator: '.' })).toBe('1.234,57');
+        expect(formatNumber(1234.565, { groupSeparator: '' })).toBe('1234.57');
+        expect(formatNumber(-0.004, { decimalSeparator: ',' })).toBe('0,00');
+    });
+
+    it('normalizes fractional, negative, and NaN precision', () => {
+        expect(formatNumber(1.005, { decimals: 2.9 })).toBe('1.01');
+        expect(formatNumber(1.005, { decimals: -0.9 })).toBe('1');
+        expect(formatNumber(1.005, { decimals: NaN })).toBe('1');
+    });
+
+    it('keeps the default for nullish precision and accepts 0 and 100', () => {
+        expect(formatNumber(1.2, { decimals: undefined })).toBe('1.20');
+        expect(formatNumber(1.2, { decimals: null as unknown as number })).toBe('1.20');
+        expect(formatNumber(1234.5, { decimals: 0 })).toBe('1 235');
+        expect(formatNumber(1, { decimals: 100 })).toBe('1.' + '0'.repeat(100));
+        expect(formatNumber(1, { decimals: 100 }).length).toBe(102);
+    });
+
+    it('rejects precision outside 0..100 before formatting a non-finite value', () => {
+        [ -1, 101, Infinity, -Infinity ].forEach((decimals) => {
+            expect(() => formatNumber(1, { decimals })).toThrow(RangeError);
+            expect(() => formatNumber(NaN, { decimals })).toThrow(RangeError);
+            expect(() => formatNumber(Infinity, { decimals })).toThrow(RangeError);
+            expect(() => format(-Infinity, { decimals })).toThrow(RangeError);
+        });
+    });
+
+    it('renders a large exponential input as plain decimal text', () => {
+        expect(formatNumber(1e21, { groupSeparator: '' })).toBe('1000000000000000000000.00');
+    });
+
+    it('renders non-finite values as whole tokens', () => {
+        expect(formatNumber(NaN)).toBe('NaN');
+        expect(formatNumber(Infinity)).toBe('Infinity');
+        expect(format(-Infinity)).toBe('-Infinity');
+        expect(formatNumber(-Infinity, {
+            decimals: 3,
+            decimalSeparator: ',',
+            groupSeparator: '.',
+        })).toBe('-Infinity');
+    });
+
+    it('matches formatNumber and numeric format for the same options', () => {
+        const cases: Array<[number, string | { decimals?: number; decimalSeparator?: string; groupSeparator?: string } | undefined]> = [
+            [1.005, undefined],
+            [-1.005, '0.00'],
+            [1000.005, '#,##0.00'],
+            [1234.565, { decimalSeparator: ',', groupSeparator: '.' }],
+            [1e21, { groupSeparator: '' }],
+            [0.1, { decimals: 20, groupSeparator: '' }],
+            [NaN, undefined],
+            [Infinity, { decimals: 4, groupSeparator: '.' }],
+        ];
+
+        cases.forEach(([value, options]) => {
+            expect(format(value, options)).toBe(formatNumber(value, options));
         });
     });
 });
@@ -242,6 +354,10 @@ describe('format (unified)', () => {
         expect(format(date, 'yyyy-MM-dd')).toBe('2026-03-19');
     });
 
+    it('dispatches a date pattern used by the rounding contract', () => {
+        expect(format(new Date(2026, 0, 5), 'dd.MM.yyyy')).toBe('05.01.2026');
+    });
+
     it('dispatches boolean formatting', () => {
         expect(format(true)).toBe('true');
         expect(format(false)).toBe('false');
@@ -250,6 +366,7 @@ describe('format (unified)', () => {
     it('dispatches boolean formatting with options', () => {
         expect(format(true, { trueValue: '1', falseValue: '0' })).toBe('1');
         expect(format(false, { trueValue: '1', falseValue: '0' })).toBe('0');
+        expect(format(true, { trueValue: 'Yes', falseValue: 'No' })).toBe('Yes');
     });
 
     it('throws on unsupported type', () => {

@@ -1,6 +1,7 @@
 import { DataTableColumn } from './table/dataTableColumn';
 import { DataTable } from './table/dataTable';
 import { SelectQueryBuilder } from './query/selectQueryBuilder'
+import { DecimalRecord, roundDecimal } from './numberRounding';
 
 export function isEmpty(value: any): boolean {
     if (value) {
@@ -142,6 +143,59 @@ export function parse(json: string): any {
 
 }
 
+// ── Rounding ────────────────────────────────────────────────────────────
+
+/**
+ * Rounds `value` to the nearest decimal place, with ties away from zero.
+ *
+ * The decision uses the canonical decimal digits of a finite input
+ * (`String(value)`), including exponential notation. A positive `digits`
+ * counts places after the decimal point, and a negative `digits` counts
+ * places before it. An omitted or `undefined` precision means `0`.
+ * The returned number does not keep trailing zeros.
+ *
+ * Only primitive numbers are accepted. Any other `value` or `digits`
+ * throws `TypeError`, including a missing `value`. `digits` must be an
+ * integer from `-308` through `324`. A fractional, non-finite, or
+ * out-of-range precision throws `RangeError`. Type and precision checks
+ * run before `NaN`, `Infinity`, and `-Infinity`, which are returned
+ * unchanged. Every zero result is `+0`.
+ *
+ * `formatNumber` applies this same decimal rule and can pad the rounded
+ * digits for display. Display precision is a separate range. The number
+ * returned here is still an IEEE 754 binary value, so later arithmetic
+ * is not exact decimal arithmetic.
+ *
+ * @param value Primitive number to round.
+ * @param digits Decimal places, from `-308` to `324`. Defaults to `0`.
+ * @returns The rounded number, or the original non-finite value.
+ */
+export function round(value: number, digits: number = 0): number {
+    if (typeof value !== 'number') {
+        throw new TypeError('round: value must be a number');
+    }
+    if (typeof digits !== 'number') {
+        throw new TypeError('round: digits must be a number');
+    }
+    if (!Number.isInteger(digits) || digits < -308 || digits > 324) {
+        throw new RangeError('round: digits must be an integer from -308 to 324');
+    }
+    if (!Number.isFinite(value)) {
+        return value;
+    }
+
+    const record = roundDecimal(value, digits);
+    if (record.coefficient === '0') {
+        return 0;
+    }
+    if (record.unchanged) {
+        return value;
+    }
+
+    const sign = record.negative ? '-' : '';
+    return Number(sign + record.coefficient + 'e' + record.exponent);
+}
+
 // ── Formatting ──────────────────────────────────────────────────────────
 
 export interface NumberFormatOptions {
@@ -193,6 +247,92 @@ function applyGrouping(integerStr: string, separator: string): string {
     return parts.join(separator);
 }
 
+function normalizeDisplayDecimals(decimals: number): number {
+    let truncated: number;
+    if (Number.isNaN(decimals)) {
+        truncated = 0;
+    } else if (!Number.isFinite(decimals)) {
+        truncated = decimals;
+    } else {
+        truncated = Math.trunc(decimals);
+    }
+    if (Object.is(truncated, -0)) {
+        truncated = 0;
+    }
+    if (truncated < 0 || truncated > 100) {
+        throw new RangeError('formatNumber: decimals must be between 0 and 100');
+    }
+    return truncated;
+}
+
+function renderRoundedDecimal(
+    record: DecimalRecord,
+    decimals: number,
+    decimalSeparator: string,
+    groupSeparator: string,
+    useGrouping: boolean,
+): string {
+    let integerPart: string;
+    let fractionalPart = '';
+
+    if (record.coefficient === '0') {
+        integerPart = '0';
+    } else if (record.exponent >= 0) {
+        integerPart = record.coefficient + '0'.repeat(record.exponent);
+    } else {
+        const fractionalDigits = -record.exponent;
+        if (record.coefficient.length > fractionalDigits) {
+            integerPart = record.coefficient.substring(0, record.coefficient.length - fractionalDigits);
+            fractionalPart = record.coefficient.substring(record.coefficient.length - fractionalDigits);
+        } else {
+            integerPart = '0';
+            fractionalPart = '0'.repeat(fractionalDigits - record.coefficient.length) + record.coefficient;
+        }
+    }
+
+    if (fractionalPart.length < decimals) {
+        fractionalPart += '0'.repeat(decimals - fractionalPart.length);
+    }
+
+    if (useGrouping) {
+        integerPart = applyGrouping(integerPart, groupSeparator);
+    }
+
+    let result = integerPart;
+    if (decimals > 0) {
+        result += decimalSeparator + fractionalPart;
+    }
+
+    if (record.negative && record.coefficient !== '0') {
+        result = '-' + result;
+    }
+
+    return result;
+}
+
+/**
+ * Formats a number as plain decimal text.
+ *
+ * A finite value uses the same canonical-decimal rule as `round`, with ties
+ * away from zero. The rounded digits are written out directly and padded to
+ * the display precision. They are not converted back to a binary number and
+ * they are not rounded a second time. A rounded zero has no minus sign.
+ *
+ * Display precision stays in `0..100`. The default is `2`. Numeric `NaN`
+ * means `0`, and a finite fraction truncates toward zero. A nullish option
+ * keeps the default. This is narrower than `round`, which accepts integers
+ * from `-308` to `324`. Precision outside `0..100` throws `RangeError`
+ * before a non-finite value is turned into a token.
+ *
+ * Finite inputs are plain decimal text, including values whose canonical
+ * form uses an exponent. For a valid precision, `NaN`, `Infinity`, and
+ * `-Infinity` are the whole tokens `"NaN"`, `"Infinity"`, and `"-Infinity"`.
+ *
+ * The rendered text follows this decimal rule. Earlier releases used
+ * `toFixed` and returned different text at several boundaries:
+ * `formatNumber(1.005)` is now `"1.01"`, high-precision `0.1` keeps the
+ * digits `0.10000000000000000000`, and `formatNumber(-0.004)` is `"0.00"`.
+ */
 export function formatNumber(value: number, formatOrOptions?: string | NumberFormatOptions): string {
     let decimals = 2;
     let decimalSeparator = '.';
@@ -209,35 +349,22 @@ export function formatNumber(value: number, formatOrOptions?: string | NumberFor
         groupSeparator = formatOrOptions.groupSeparator ?? groupSeparator;
     }
 
-    const isNegative = value < 0;
-    const absValue = Math.abs(value);
-    const fixed = absValue.toFixed(decimals);
-
-    let integerPart: string;
-    let fractionalPart: string | undefined;
-
-    const pointIndex = fixed.indexOf('.');
-    if (pointIndex !== -1) {
-        integerPart = fixed.substring(0, pointIndex);
-        fractionalPart = fixed.substring(pointIndex + 1);
-    } else {
-        integerPart = fixed;
+    const displayDecimals = normalizeDisplayDecimals(decimals);
+    if (!Number.isFinite(value)) {
+        if (Number.isNaN(value)) {
+            return 'NaN';
+        }
+        return value > 0 ? 'Infinity' : '-Infinity';
     }
 
-    if (useGrouping) {
-        integerPart = applyGrouping(integerPart, groupSeparator);
-    }
-
-    let result = integerPart;
-    if (fractionalPart !== undefined) {
-        result += decimalSeparator + fractionalPart;
-    }
-
-    if (isNegative) {
-        result = '-' + result;
-    }
-
-    return result;
+    const record = roundDecimal(value, displayDecimals);
+    return renderRoundedDecimal(
+        record,
+        displayDecimals,
+        decimalSeparator,
+        groupSeparator,
+        useGrouping,
+    );
 }
 
 export function formatDate(value: Date, fmt: string = 'dd.MM.yyyy'): string {
@@ -294,6 +421,10 @@ export function formatBoolean(value: boolean, options?: BooleanFormatOptions): s
     return value ? trueValue : falseValue;
 }
 
+/**
+ * Formats a number, date, or boolean.
+ * A number is passed to `formatNumber` and uses that function's decimal rule.
+ */
 export function format(
     value: number | Date | boolean,
     formatOrOptions?: string | NumberFormatOptions | BooleanFormatOptions,
